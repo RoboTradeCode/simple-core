@@ -8,11 +8,11 @@
  */
 Json::Value json(const std::string& message)
 {
-    Json::CharReaderBuilder builder;
-    Json::CharReader* reader = builder.newCharReader();
-    Json::Value json;
-    std::string errors;
-    reader->parse(message.c_str(),message.c_str() + message.size(),&json,&errors);
+    Json::CharReaderBuilder builder{};
+    auto reader = std::unique_ptr<Json::CharReader>(builder.newCharReader());
+    Json::Value root{};
+    std::string errors{};
+    reader->parse(message.c_str(), message.c_str() + message.length(), &root, &errors);
 
-    return json;
+    return root;
 }

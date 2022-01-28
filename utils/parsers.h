@@ -1,6 +1,7 @@
 #ifndef BINANCE_CONNECTOR_CPP_PARSERS_H
 #define BINANCE_CONNECTOR_CPP_PARSERS_H
 
+#include <memory>
 #include <jsoncpp/json/json.h>
 
 /**
