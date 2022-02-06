@@ -12,7 +12,7 @@ rm boost_1_78_0.tar.bz2
 
 # Сборка Boost.Log
 echo "Building Boost.Log..."
-cd libs/boost_1_78_0 || exit 1
+cd boost_1_78_0 || exit 1
 sudo ./bootstrap.sh
 sudo ./b2 install --with-log
 cd ../..
