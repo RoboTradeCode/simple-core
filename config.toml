@@ -1,0 +1,42 @@
+[exchange]
+    # Коэффициенты для выставления ордеров
+    sell_coefficient = "1.0015"
+    buy_coefficient = "0.9985"
+
+[aeron]
+    # Стратегия ожидания Aeron
+    idle_strategy_sleep_ms = 1
+
+    # Subscriber для приёма биржевого стакана
+    [aeron.orderbooks]
+        channel = "aeron:udp?control-mode=manual"
+        stream_id = 1001
+        destinations = [
+            "aeron:udp?endpoint=172.31.4.173:40457|control=54.248.171.18:40456"
+        ]
+
+    # Subscriber для приёма баланса
+    [aeron.balances]
+        channel = "aeron:udp?control-mode=manual"
+        stream_id = 1002
+        destinations = [
+            "aeron:udp?endpoint=172.31.4.173:40458|control=54.248.171.18:40456"
+        ]
+
+    # Publisher для отправки ордеров
+    [aeron.gateway]
+        channel = "aeron:udp?control=172.31.4.173:40456|control-mode=dynamic"
+        stream_id = 1003
+        buffer_size = 1400
+
+    # Publisher для отправки
+    [aeron.metrics]
+        channel = "aeron:udp?control=172.31.4.173:40456|control-mode=dynamic"
+        stream_id = 1004
+        buffer_size = 1400
+
+    # Publisher для отправки ошибок
+    [aeron.errors]
+        channel = "aeron:udp?control=172.31.4.173:40456|control-mode=dynamic"
+        stream_id = 1005
+        buffer_size = 1400
