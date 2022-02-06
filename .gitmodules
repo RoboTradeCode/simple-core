@@ -1,0 +1,3 @@
+[submodule "libs/sentry-native"]
+	path = libs/sentry-native
+	url = https://github.com/getsentry/sentry-native.git
