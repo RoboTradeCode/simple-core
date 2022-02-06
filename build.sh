@@ -18,8 +18,9 @@ sudo ./b2 install --with-log
 cd ../
 
 # Загрузка Sentry
-echo "Building Sentry..."
+echo "Downloading Sentry..."
 git clone --recurse-submodules https://github.com/getsentry/sentry-native.git
+cd ../
 
 # Сборка ядра
 echo "Building Core..."
