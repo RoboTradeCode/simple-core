@@ -15,7 +15,7 @@ echo "Building Boost.Log..."
 cd boost_1_78_0 || exit 1
 sudo ./bootstrap.sh
 sudo ./b2 install --with-log
-cd ../..
+cd ../
 
 # Загрузка Sentry
 echo "Building Sentry..."
