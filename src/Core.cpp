@@ -1,6 +1,11 @@
 #include <boost/json/src.hpp>
 #include "Core.h"
 
+/**
+ * Создать экземпляр торгового ядра и подключиться к каналам Aeron
+ *
+ * @param config_file_path Путь к файлу конфигурации в формате TOML
+ */
 Core::Core(std::string_view config_file_path)
     : idle_strategy(std::chrono::milliseconds(0)),
       has_sell_order(false),
@@ -69,6 +74,9 @@ Core::Core(std::string_view config_file_path)
     BUY_COEFFICIENT = dec_float(config.exchange.buy_coefficient);
 }
 
+/**
+ * Проверить каналы Aeron на наличие новых сообщений
+ */
 void Core::poll()
 {
     // Опрос каналов
@@ -80,6 +88,11 @@ void Core::poll()
     idle_strategy.idle(fragments_read);
 }
 
+/**
+ * Функция обратного вызова для обработки баланса
+ *
+ * @param message Баланс в формате JSON
+ */
 void Core::balances_handler(std::string_view message)
 {
     BOOST_LOG_SEV(balance_logger, logging::trivial::info) << message;
@@ -99,6 +112,11 @@ void Core::balances_handler(std::string_view message)
     }
 }
 
+/**
+ * Функция обратного вызова для обработки биржевых стаканов
+ *
+ * @param message Биржевой стакан в формате JSON
+ */
 void Core::orderbooks_handler(std::string_view message)
 {
     BOOST_LOG_SEV(orderbooks_logger, logging::trivial::info) << message;
@@ -124,6 +142,9 @@ void Core::orderbooks_handler(std::string_view message)
     process_orders();
 }
 
+/**
+ * Проверить условия для создания и отмены ордеров
+ */
 void Core::process_orders()
 {
     // Получение среднего арифметического ордербуков BTC-USDT
@@ -178,6 +199,12 @@ void Core::process_orders()
     // TODO: Отправлять метрики
 }
 
+/**
+ * Рассчитать среднее арифметическое лучших ордеров для тикера
+ *
+ * @param ticker Тикер
+ * @return Пара, содержащая цену покупки и продажи соответственно
+ */
 std::pair<dec_float, dec_float> Core::avg_orderbooks(const std::string& ticker)
 {
     // Суммы лучших предложений
@@ -200,6 +227,13 @@ std::pair<dec_float, dec_float> Core::avg_orderbooks(const std::string& ticker)
     return std::make_pair(avg_ask, avg_bid);
 }
 
+/**
+ * Создать ордер
+ *
+ * @param side Тип ордера
+ * @param price Цена
+ * @param quantity Объём
+ */
 void Core::create_order(std::string_view side, const dec_float& price, const dec_float& quantity)
 {
     // Формирование сообщения в формате JSON
@@ -218,6 +252,11 @@ void Core::create_order(std::string_view side, const dec_float& price, const dec
     gateway_channel->offer(message);
 }
 
+/**
+ * Отменить ордер
+ *
+ * @param side Тип ордера
+ */
 void Core::cancel_order(std::string_view side)
 {
     // Формирование сообщения в формате JSON

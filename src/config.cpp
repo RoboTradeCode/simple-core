@@ -12,6 +12,12 @@ const int DEFAULT_METRICS_STREAM_ID = 1004;
 const int DEFAULT_ERRORS_STREAM_ID = 1005;
 const int DEFAULT_BUFFER_SIZE = 1400;
 
+/**
+ * Преобразует файл конфигурации в структуру, понятную ядру
+ *
+ * @param file_path Путь к файлу конфигурации в формате TOML
+ * @return Конфигурация ядра
+ */
 core_config parse_config(std::string_view file_path)
 {
     // Инициализация структуры и корня файла конфигурации
