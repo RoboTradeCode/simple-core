@@ -47,9 +47,9 @@ class Core : public std::enable_shared_from_this<Core>
     bool has_buy_order;
 
     // Логгеры
-    logger_type orderbooks_logger;
-    logger_type balance_logger;
-    logger_type orders_logger;
+    logger_t orderbooks_logger;
+    logger_t balance_logger;
+    logger_t orders_logger;
 
     /**
      * Функция обратного вызова для обработки баланса

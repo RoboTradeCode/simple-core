@@ -6,7 +6,7 @@ Core::Core(std::string_view config_file_path)
       has_sell_order(false),
       has_buy_order(false),
       orderbooks_logger(keywords::channel = "orderbooks"),
-      balance_logger(keywords::channel = "balance"),
+      balance_logger(keywords::channel = "balances"),
       orders_logger(keywords::channel = "orders")
 {
     // Получение конфигурации

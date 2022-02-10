@@ -16,10 +16,10 @@ namespace src = boost::log::sources;
 namespace sinks = boost::log::sinks;
 namespace keywords = boost::log::keywords;
 
-typedef src::severity_channel_logger<logging::trivial::severity_level, std::string> logger_type;
+typedef src::severity_channel_logger<logging::trivial::severity_level, std::string> logger_t;
 
 /**
- * Инициализация лог-файлов
+ * Инициализация логирования
  */
 void init_logging();
 
