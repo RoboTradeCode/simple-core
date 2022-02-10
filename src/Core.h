@@ -11,7 +11,7 @@
 #include "config.h"
 #include "logging.h"
 
-using boost::multiprecision::cpp_dec_float_50;
+using dec_float = boost::multiprecision::cpp_dec_float_50;
 
 /**
  * Торговое ядро
@@ -31,16 +31,16 @@ class Core : public std::enable_shared_from_this<Core>
     aeron::SleepingIdleStrategy idle_strategy;
 
     // Последние данные о балансе и ордербуках
-    std::map<std::string, cpp_dec_float_50> balance;
-    std::map<std::string, std::map<std::string, std::pair<cpp_dec_float_50, cpp_dec_float_50>>> orderbooks;
+    std::map<std::string, dec_float> balance;
+    std::map<std::string, std::map<std::string, std::pair<dec_float, dec_float>>> orderbooks;
 
     // Коэффициенты для выставления ордеров
-    cpp_dec_float_50 SELL_COEFFICIENT;
-    cpp_dec_float_50 BUY_COEFFICIENT;
+    dec_float SELL_COEFFICIENT;
+    dec_float BUY_COEFFICIENT;
 
     // Последние границы удержания ордеров
-    std::pair<cpp_dec_float_50, cpp_dec_float_50> ask_bounds;
-    std::pair<cpp_dec_float_50, cpp_dec_float_50> bid_bounds;
+    std::pair<dec_float, dec_float> ask_bounds;
+    std::pair<dec_float, dec_float> bid_bounds;
 
     // Флаги наличия ордеров
     bool has_sell_order;
@@ -76,7 +76,7 @@ class Core : public std::enable_shared_from_this<Core>
      * @param ticker Тикер
      * @return Пара, содержащая цену покупки и продажи соответственно
      */
-    std::pair<cpp_dec_float_50, cpp_dec_float_50> avg_orderbooks(const std::string& ticker);
+    std::pair<dec_float, dec_float> avg_orderbooks(const std::string& ticker);
 
     /**
      * Создать ордер
@@ -85,7 +85,7 @@ class Core : public std::enable_shared_from_this<Core>
      * @param price Цена
      * @param quantity Объём
      */
-    void create_order(std::string_view side, const cpp_dec_float_50& price, const cpp_dec_float_50& quantity);
+    void create_order(std::string_view side, const dec_float& price, const dec_float& quantity);
 
     /**
      * Отменить ордер

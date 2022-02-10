@@ -65,8 +65,8 @@ Core::Core(std::string_view config_file_path)
     idle_strategy = aeron::SleepingIdleStrategy(std::chrono::milliseconds(config.aeron.idle_strategy_sleep_ms));
 
     // Инициализация коэффициентов для выставления ордеров
-    SELL_COEFFICIENT = cpp_dec_float_50(config.exchange.sell_coefficient);
-    BUY_COEFFICIENT = cpp_dec_float_50(config.exchange.buy_coefficient);
+    SELL_COEFFICIENT = dec_float(config.exchange.sell_coefficient);
+    BUY_COEFFICIENT = dec_float(config.exchange.buy_coefficient);
 }
 
 void Core::poll()
@@ -94,7 +94,7 @@ void Core::balances_handler(std::string_view message)
     for (auto field: obj["B"])
     {
         std::string ticker((std::string_view(field["a"])));
-        cpp_dec_float_50 free((std::string_view(field["f"])));
+        dec_float free((std::string_view(field["f"])));
         balance[ticker] = free;
     }
 }
@@ -112,8 +112,8 @@ void Core::orderbooks_handler(std::string_view message)
     // Извлечение нужных полей
     std::string exchange((std::string_view(obj["exchange"])));
     std::string ticker((std::string_view(obj["s"])));
-    cpp_dec_float_50 best_ask((std::string_view(obj["a"])));
-    cpp_dec_float_50 best_bid((std::string_view(obj["b"])));
+    dec_float best_ask((std::string_view(obj["a"])));
+    dec_float best_bid((std::string_view(obj["b"])));
 
     // Обновление сохранённого ордербука
     orderbooks[exchange][ticker] = std::make_pair(best_ask, best_bid);
@@ -125,19 +125,19 @@ void Core::orderbooks_handler(std::string_view message)
 void Core::process_orders()
 {
     // Получение среднего арифметического ордербуков BTC-USDT
-    std::pair<cpp_dec_float_50, cpp_dec_float_50> avg = avg_orderbooks("BTC-USDT");
-    cpp_dec_float_50 avg_ask = avg.first;
-    cpp_dec_float_50 avg_bid = avg.second;
+    std::pair<dec_float, dec_float> avg = avg_orderbooks("BTC-USDT");
+    dec_float avg_ask = avg.first;
+    dec_float avg_bid = avg.second;
 
     // Расчёт возможных ордеров
-    cpp_dec_float_50 sell_price = avg_ask * SELL_COEFFICIENT;
-    cpp_dec_float_50 buy_price = avg_bid * BUY_COEFFICIENT;
-    cpp_dec_float_50 sell_quantity = balance["BTC"];
-    cpp_dec_float_50 buy_quantity = balance["USDT"] / sell_price;
-    cpp_dec_float_50 min_ask = avg_ask * 0.9995;
-    cpp_dec_float_50 max_ask = avg_ask * 1.0005;
-    cpp_dec_float_50 min_bid = avg_bid * 0.9995;
-    cpp_dec_float_50 max_bid = avg_bid * 1.0005;
+    dec_float sell_price = avg_ask * SELL_COEFFICIENT;
+    dec_float buy_price = avg_bid * BUY_COEFFICIENT;
+    dec_float sell_quantity = balance["BTC"];
+    dec_float buy_quantity = balance["USDT"] / sell_price;
+    dec_float min_ask = avg_ask * 0.9995;
+    dec_float max_ask = avg_ask * 1.0005;
+    dec_float min_bid = avg_bid * 0.9995;
+    dec_float max_bid = avg_bid * 1.0005;
 
     // Если нет ордера на покупку, но есть BTC — создать ордер на покупку
     if (!has_sell_order && balance["BTC"] > 0.0008)
@@ -170,29 +170,29 @@ void Core::process_orders()
     }
 }
 
-std::pair<cpp_dec_float_50, cpp_dec_float_50> Core::avg_orderbooks(const std::string& ticker)
+std::pair<dec_float, dec_float> Core::avg_orderbooks(const std::string& ticker)
 {
     // Суммы лучших предложений
-    cpp_dec_float_50 sum_ask(0);
-    cpp_dec_float_50 sum_bid(0);
+    dec_float sum_ask(0);
+    dec_float sum_bid(0);
     for (auto const&[exchange, exchange_orderbooks]: orderbooks)
     {
-        std::pair<cpp_dec_float_50, cpp_dec_float_50> orderbook = exchange_orderbooks.at(ticker);
+        std::pair<dec_float, dec_float> orderbook = exchange_orderbooks.at(ticker);
         sum_ask += orderbook.first;
         sum_bid += orderbook.second;
     }
 
     // Количество лучших предложений
-    cpp_dec_float_50 size(orderbooks.size());
+    dec_float size(orderbooks.size());
 
     // Среднее арифметическое лучших предложений
-    cpp_dec_float_50 avg_ask(sum_ask / size);
-    cpp_dec_float_50 avg_bid(sum_bid / size);
+    dec_float avg_ask(sum_ask / size);
+    dec_float avg_bid(sum_bid / size);
 
     return std::make_pair(avg_ask, avg_bid);
 }
 
-void Core::create_order(std::string_view side, const cpp_dec_float_50& price, const cpp_dec_float_50& quantity)
+void Core::create_order(std::string_view side, const dec_float& price, const dec_float& quantity)
 {
     // Формирование сообщения в формате JSON
     std::string message(boost::json::serialize(boost::json::value{
