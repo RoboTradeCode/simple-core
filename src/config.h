@@ -4,7 +4,7 @@
 
 #include <string>
 #include <vector>
-#include <toml.h>
+#include <toml++/toml.h>
 
 extern const char* DEFAULT_SELL_COEFFICIENT;
 extern const char* DEFAULT_BUY_COEFFICIENT;

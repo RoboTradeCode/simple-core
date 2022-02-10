@@ -1,3 +1,12 @@
+[submodule "libs/aeron"]
+	path = libs/aeron
+	url = https://github.com/real-logic/aeron.git
 [submodule "libs/sentry-native"]
 	path = libs/sentry-native
 	url = https://github.com/getsentry/sentry-native.git
+[submodule "libs/simdjson"]
+	path = libs/simdjson
+	url = https://github.com/simdjson/simdjson.git
+[submodule "libs/tomlplusplus"]
+	path = libs/tomlplusplus
+	url = https://github.com/marzer/tomlplusplus.git

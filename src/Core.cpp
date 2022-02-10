@@ -115,6 +115,8 @@ void Core::orderbooks_handler(std::string_view message)
     dec_float best_ask((std::string_view(obj["a"])));
     dec_float best_bid((std::string_view(obj["b"])));
 
+    // TODO: Проверять наличие полей в сообщении
+
     // Обновление сохранённого ордербука
     orderbooks[exchange][ticker] = std::make_pair(best_ask, best_bid);
 
@@ -139,6 +141,8 @@ void Core::process_orders()
     dec_float min_bid = avg_bid * 0.9995;
     dec_float max_bid = avg_bid * 1.0005;
 
+    // TODO: Добавить коэффициенты для границ удержания в конфигурацию
+
     // Если нет ордера на покупку, но есть BTC — создать ордер на покупку
     if (!has_sell_order && balance["BTC"] > 0.0008)
     {
@@ -155,6 +159,8 @@ void Core::process_orders()
         has_buy_order = true;
     }
 
+    // TODO: Добавить минимальный порог для баланса в конфигурацию
+
     // Если есть ордер на продажу, но усреднённое лучшее предложение за пределами удержания — отменить ордер
     if (has_sell_order && !(ask_bounds.first < avg_ask && avg_ask < ask_bounds.second))
     {
@@ -168,6 +174,8 @@ void Core::process_orders()
         cancel_order("BUY");
         has_buy_order = false;
     }
+
+    // TODO: Отправлять метрики
 }
 
 std::pair<dec_float, dec_float> Core::avg_orderbooks(const std::string& ticker)
