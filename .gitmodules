@@ -1,6 +1,6 @@
-[submodule "libs/aeron"]
-	path = libs/aeron
-	url = https://github.com/real-logic/aeron.git
+[submodule "libs/aeron_cpp"]
+    path = libs/aeron_cpp
+    url = https://gitlab.com/transport_layer/aeron/aeron_cpp.git
 [submodule "libs/sentry-native"]
 	path = libs/sentry-native
 	url = https://github.com/getsentry/sentry-native.git

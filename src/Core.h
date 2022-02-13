@@ -6,8 +6,9 @@
 #include <boost/multiprecision/cpp_dec_float.hpp>
 #include <boost/log/trivial.hpp>
 #include <simdjson.h>
-#include "Subscriber.h"
-#include "Publisher.h"
+#include <sentry.h>
+#include <Subscriber.h>
+#include <Publisher.h>
 #include "config.h"
 #include "logging.h"
 
@@ -22,25 +23,33 @@ class Core : public std::enable_shared_from_this<Core>
 {
     // Каналы Aeron
     std::shared_ptr<Subscriber> orderbooks_channel;
-    std::shared_ptr<Subscriber> balances_channel;
+    std::shared_ptr<Subscriber> balance_channel;
     std::shared_ptr<Publisher> gateway_channel;
-    std::shared_ptr<Publisher> metrics_channel;
+    std::shared_ptr<Publisher> metrics_channel;     // TODO: Отправлять метрики
     std::shared_ptr<Publisher> errors_channel;
 
     // Стратегия ожидания Aeron
     aeron::SleepingIdleStrategy idle_strategy;
 
+    // Пороговые значения для инструментов
+    dec_float BTC_THRESHOLD;
+    dec_float USDT_THRESHOLD;
+
+    // Коэффициенты для вычисления цены ордеров
+    dec_float SELL_RATIO;
+    dec_float BUY_RATIO;
+
+    // Коэффициенты для вычисления границ удержания ордеров
+    dec_float LOWER_BOUND_RATIO;
+    dec_float UPPER_BOUND_RATIO;
+
     // Последние данные о балансе и ордербуках
     std::map<std::string, dec_float> balance;
     std::map<std::string, std::map<std::string, std::pair<dec_float, dec_float>>> orderbooks;
 
-    // Коэффициенты для выставления ордеров
-    dec_float SELL_COEFFICIENT;
-    dec_float BUY_COEFFICIENT;
-
     // Последние границы удержания ордеров
-    std::pair<dec_float, dec_float> ask_bounds;
-    std::pair<dec_float, dec_float> bid_bounds;
+    std::pair<dec_float, dec_float> sell_bounds;
+    std::pair<dec_float, dec_float> buy_bounds;
 
     // Флаги наличия ордеров
     bool has_sell_order;
@@ -50,13 +59,14 @@ class Core : public std::enable_shared_from_this<Core>
     logger_t orderbooks_logger;
     logger_t balance_logger;
     logger_t orders_logger;
+    logger_t errors_logger;
 
     /**
      * Функция обратного вызова для обработки баланса
      *
      * @param message Баланс в формате JSON
      */
-    void balances_handler(std::string_view message);
+    void balance_handler(std::string_view message);
 
     /**
      * Функция обратного вызова для обработки биржевых стаканов

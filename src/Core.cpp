@@ -7,71 +7,63 @@
  * @param config_file_path Путь к файлу конфигурации в формате TOML
  */
 Core::Core(std::string_view config_file_path)
-    : idle_strategy(std::chrono::milliseconds(0)),
+    : idle_strategy(std::chrono::milliseconds(DEFAULT_IDLE_STRATEGY_SLEEP_MS)),
       has_sell_order(false),
       has_buy_order(false),
       orderbooks_logger(keywords::channel = "orderbooks"),
       balance_logger(keywords::channel = "balances"),
-      orders_logger(keywords::channel = "orders")
+      orders_logger(keywords::channel = "orders"),
+      errors_logger(keywords::channel = "errors")
 {
     // Получение конфигурации
     core_config config = parse_config(config_file_path);
 
-    // Инициализация канала Aeron для биржевых стаканов
+    // Сокращения для удобства доступа
+    auto exchange = config.exchange;
+    auto aeron = config.aeron;
+    auto subscribers = aeron.subscribers;
+    auto publishers = aeron.publishers;
+    auto gateway = publishers.gateway;
+    auto metrics = publishers.metrics;
+    auto errors = publishers.errors;
+
+    // Инициализация каналов Aeron
     orderbooks_channel = std::make_shared<Subscriber>(
         [&](std::string_view message)
-        {
-            shared_from_this()->orderbooks_handler(message);
-        },
-        config.aeron.orderbooks.channel,
-        config.aeron.orderbooks.stream_id
+        { shared_from_this()->orderbooks_handler(message); },
+        subscribers.orderbooks.channel,
+        subscribers.orderbooks.stream_id
     );
-    for (const std::string& channel: config.aeron.orderbooks.destinations)
-    {
-        orderbooks_channel->addDestination(channel);
-    }
-
-    // Инициализация канала Aeron для баланса
-    balances_channel = std::make_shared<Subscriber>(
+    balance_channel = std::make_shared<Subscriber>(
         [&](std::string_view message)
-        {
-            shared_from_this()->balances_handler(message);
-        },
-        config.aeron.balances.channel,
-        config.aeron.balances.stream_id
+        { shared_from_this()->balance_handler(message); },
+        subscribers.balance.channel,
+        subscribers.balance.stream_id
     );
-    for (const std::string& channel: config.aeron.balances.destinations)
-    {
-        balances_channel->addDestination(channel);
-    }
+    gateway_channel = std::make_shared<Publisher>(gateway.channel, gateway.stream_id, gateway.buffer_size);
+    metrics_channel = std::make_shared<Publisher>(metrics.channel, metrics.stream_id, metrics.buffer_size);
+    errors_channel = std::make_shared<Publisher>(errors.channel, errors.stream_id, errors.buffer_size);
 
-    // Инициализация канала Aeron для шлюза
-    gateway_channel = std::make_shared<Publisher>(
-        config.aeron.gateway.channel,
-        config.aeron.gateway.stream_id,
-        config.aeron.gateway.buffer_size
-    );
-
-    // Инициализация канала Aeron для метрик
-    metrics_channel = std::make_shared<Publisher>(
-        config.aeron.metrics.channel,
-        config.aeron.metrics.stream_id,
-        config.aeron.metrics.buffer_size
-    );
-
-    // Инициализация канала Aeron для ошибок
-    errors_channel = std::make_shared<Publisher>(
-        config.aeron.errors.channel,
-        config.aeron.errors.stream_id,
-        config.aeron.errors.buffer_size
-    );
+    // Подписка на Publisher'ов
+    for (const std::string& channel: subscribers.orderbooks.destinations)
+        orderbooks_channel->add_destination(channel);
+    for (const std::string& channel: subscribers.balance.destinations)
+        balance_channel->add_destination(channel);
 
     // Инициализация стратегии ожидания
-    idle_strategy = aeron::SleepingIdleStrategy(std::chrono::milliseconds(config.aeron.idle_strategy_sleep_ms));
+    idle_strategy = aeron::SleepingIdleStrategy(std::chrono::milliseconds(subscribers.idle_strategy_sleep_ms));
 
-    // Инициализация коэффициентов для выставления ордеров
-    SELL_COEFFICIENT = dec_float(config.exchange.sell_coefficient);
-    BUY_COEFFICIENT = dec_float(config.exchange.buy_coefficient);
+    // Инициализация пороговых значений для инструментов
+    BTC_THRESHOLD = dec_float(exchange.btc_threshold);
+    USDT_THRESHOLD = dec_float(exchange.usdt_threshold);
+
+    // Инициализация коэффициентов для вычисления цены ордеров
+    SELL_RATIO = dec_float(exchange.sell_ratio);
+    BUY_RATIO = dec_float(exchange.buy_ratio);
+
+    // Инициализация коэффициентов для вычисления границ удержания ордеров
+    LOWER_BOUND_RATIO = dec_float(exchange.lower_bound_ratio);
+    UPPER_BOUND_RATIO = dec_float(exchange.upper_bound_ratio);
 }
 
 /**
@@ -81,10 +73,10 @@ void Core::poll()
 {
     // Опрос каналов
     int fragments_read_orderbooks = orderbooks_channel->poll();
-    int fragments_read_balances = balances_channel->poll();
+    int fragments_read_balance = balance_channel->poll();
 
     // Выполнение стратегии ожидания
-    int fragments_read = fragments_read_orderbooks + fragments_read_balances;
+    int fragments_read = fragments_read_orderbooks + fragments_read_balance;
     idle_strategy.idle(fragments_read);
 }
 
@@ -93,22 +85,35 @@ void Core::poll()
  *
  * @param message Баланс в формате JSON
  */
-void Core::balances_handler(std::string_view message)
+void Core::balance_handler(std::string_view message)
 {
     BOOST_LOG_SEV(balance_logger, logging::trivial::info) << message;
 
-    // Инициализация итератора
-    simdjson::ondemand::parser parser;
-    simdjson::padded_string json(message);
-    simdjson::ondemand::document doc = parser.iterate(json);
-    simdjson::ondemand::object obj = doc.get_object();
-
-    // Обновление баланса
-    for (auto field: obj["B"])
+    try
     {
-        std::string ticker((std::string_view(field["a"])));
-        dec_float free((std::string_view(field["f"])));
-        balance[ticker] = free;
+        // Инициализация итератора
+        simdjson::ondemand::parser parser;
+        simdjson::padded_string json(message);
+        simdjson::ondemand::document doc = parser.iterate(json);
+        simdjson::ondemand::object obj = doc.get_object();
+
+        // Обновление баланса
+        for (auto field: obj["B"])
+        {
+            std::string ticker((std::string_view(field["a"])));
+            dec_float free((std::string_view(field["f"])));
+            balance[ticker] = free;
+        }
+    }
+    catch (simdjson::simdjson_error& e)
+    {
+        sentry_value_t exc = sentry_value_new_exception("simdjson::simdjson_error", e.what());
+        sentry_value_t event = sentry_value_new_event();
+        sentry_event_add_exception(event, exc);
+        sentry_capture_event(event);
+
+        BOOST_LOG_SEV(errors_logger, logging::trivial::error) << e.what();
+        errors_channel->offer(e.what());
     }
 }
 
@@ -121,25 +126,36 @@ void Core::orderbooks_handler(std::string_view message)
 {
     BOOST_LOG_SEV(orderbooks_logger, logging::trivial::info) << message;
 
-    // Инициализация итератора
-    simdjson::ondemand::parser parser;
-    simdjson::padded_string json(message);
-    simdjson::ondemand::document doc = parser.iterate(json);
-    simdjson::ondemand::object obj = doc.get_object();
+    try
+    {
+        // Инициализация итератора
+        simdjson::ondemand::parser parser;
+        simdjson::padded_string json(message);
+        simdjson::ondemand::document doc = parser.iterate(json);
+        simdjson::ondemand::object obj = doc.get_object();
 
-    // Извлечение нужных полей
-    std::string exchange((std::string_view(obj["exchange"])));
-    std::string ticker((std::string_view(obj["s"])));
-    dec_float best_ask((std::string_view(obj["a"])));
-    dec_float best_bid((std::string_view(obj["b"])));
+        // Извлечение нужных полей
+        std::string exchange((std::string_view(obj["exchange"])));
+        std::string ticker((std::string_view(obj["s"])));
+        dec_float best_ask((std::string_view(obj["a"])));
+        dec_float best_bid((std::string_view(obj["b"])));
 
-    // TODO: Проверять наличие полей в сообщении
+        // Обновление сохранённого ордербука
+        orderbooks[exchange][ticker] = std::make_pair(best_ask, best_bid);
 
-    // Обновление сохранённого ордербука
-    orderbooks[exchange][ticker] = std::make_pair(best_ask, best_bid);
+        // Проверка условий для создания и отмены ордеров
+        process_orders();
+    }
+    catch (simdjson::simdjson_error& e)
+    {
+        sentry_value_t exc = sentry_value_new_exception("simdjson::simdjson_error", e.what());
+        sentry_value_t event = sentry_value_new_event();
+        sentry_event_add_exception(event, exc);
+        sentry_capture_event(event);
 
-    // Проверка условий для создания и отмены ордеров
-    process_orders();
+        BOOST_LOG_SEV(errors_logger, logging::trivial::error) << e.what();
+        errors_channel->offer(e.what());
+    }
 }
 
 /**
@@ -153,50 +169,44 @@ void Core::process_orders()
     dec_float avg_bid = avg.second;
 
     // Расчёт возможных ордеров
-    dec_float sell_price = avg_ask * SELL_COEFFICIENT;
-    dec_float buy_price = avg_bid * BUY_COEFFICIENT;
+    dec_float sell_price = avg_ask * SELL_RATIO;
+    dec_float buy_price = avg_bid * BUY_RATIO;
     dec_float sell_quantity = balance["BTC"];
     dec_float buy_quantity = balance["USDT"] / sell_price;
-    dec_float min_ask = avg_ask * 0.9995;
-    dec_float max_ask = avg_ask * 1.0005;
-    dec_float min_bid = avg_bid * 0.9995;
-    dec_float max_bid = avg_bid * 1.0005;
+    dec_float min_ask = avg_ask * LOWER_BOUND_RATIO;
+    dec_float max_ask = avg_ask * UPPER_BOUND_RATIO;
+    dec_float min_bid = avg_bid * LOWER_BOUND_RATIO;
+    dec_float max_bid = avg_bid * UPPER_BOUND_RATIO;
 
-    // TODO: Добавить коэффициенты для границ удержания в конфигурацию
-
-    // Если нет ордера на покупку, но есть BTC — создать ордер на покупку
-    if (!has_sell_order && balance["BTC"] > 0.0008)
+    // Если нет ордера на продажу, но есть BTC — создать ордер на продажу
+    if (!has_sell_order && balance["BTC"] > BTC_THRESHOLD)
     {
         create_order("SELL", sell_price, sell_quantity);
-        ask_bounds = std::make_pair(min_ask, max_ask);
+        sell_bounds = std::make_pair(min_ask, max_ask);
         has_sell_order = true;
     }
 
-    // Если нет ордера на покупку, но есть USDT — создать ордер
-    if (!has_buy_order && balance["USDT"] > 40)
+    // Если нет ордера на покупку, но есть USDT — создать ордер на покупку
+    if (!has_buy_order && balance["USDT"] > USDT_THRESHOLD)
     {
         create_order("BUY", buy_price, buy_quantity);
-        bid_bounds = std::make_pair(min_bid, max_bid);
+        buy_bounds = std::make_pair(min_bid, max_bid);
         has_buy_order = true;
     }
 
-    // TODO: Добавить минимальный порог для баланса в конфигурацию
-
     // Если есть ордер на продажу, но усреднённое лучшее предложение за пределами удержания — отменить ордер
-    if (has_sell_order && !(ask_bounds.first < avg_ask && avg_ask < ask_bounds.second))
+    if (has_sell_order && !(sell_bounds.first < avg_ask && avg_ask < sell_bounds.second))
     {
         cancel_order("SELL");
         has_sell_order = false;
     }
 
     // Если есть ордер на покупку, но усреднённое лучшее предложение за пределами удержания — отменить ордер
-    if (has_buy_order && !(bid_bounds.first < avg_bid && avg_bid < bid_bounds.second))
+    if (has_buy_order && !(buy_bounds.first < avg_bid && avg_bid < buy_bounds.second))
     {
         cancel_order("BUY");
         has_buy_order = false;
     }
-
-    // TODO: Отправлять метрики
 }
 
 /**
@@ -212,9 +222,9 @@ std::pair<dec_float, dec_float> Core::avg_orderbooks(const std::string& ticker)
     dec_float sum_bid(0);
     for (auto const&[exchange, exchange_orderbooks]: orderbooks)
     {
-        std::pair<dec_float, dec_float> orderbook = exchange_orderbooks.at(ticker);
-        sum_ask += orderbook.first;
-        sum_bid += orderbook.second;
+        auto[ask, bid] = exchange_orderbooks.at(ticker);
+        sum_ask += ask;
+        sum_bid += bid;
     }
 
     // Количество лучших предложений
@@ -239,7 +249,7 @@ void Core::create_order(std::string_view side, const dec_float& price, const dec
     // Формирование сообщения в формате JSON
     std::string message(boost::json::serialize(boost::json::value{
         { "a", "+" },
-        { "S", "BTCUSDT" },
+        { "S", "BTC-USDT" },
         { "s", side },
         { "t", "LIMIT" },
         { "p", price.str() },
@@ -247,8 +257,6 @@ void Core::create_order(std::string_view side, const dec_float& price, const dec
     }));
 
     BOOST_LOG_SEV(orders_logger, logging::trivial::info) << message;
-
-    // Отправка сообщения в шлюз
     gateway_channel->offer(message);
 }
 
@@ -262,12 +270,10 @@ void Core::cancel_order(std::string_view side)
     // Формирование сообщения в формате JSON
     std::string message(boost::json::serialize(boost::json::value{
         { "a", "-" },
-        { "S", "BTCUSDT" },
+        { "S", "BTC-USDT" },
         { "s", side },
     }));
 
     BOOST_LOG_SEV(orders_logger, logging::trivial::info) << message;
-
-    // Отправка сообщения в шлюз
     gateway_channel->offer(message);
 }

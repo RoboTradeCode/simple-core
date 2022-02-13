@@ -26,7 +26,7 @@ void init_logging()
         keywords::format = "[%TimeStamp%]: %Message%",
         keywords::open_mode = std::ios_base::app,       // Дозапись
         keywords::auto_flush = true,                    // Обновление лога после каждой записи
-        keywords::rotation_size = 10 * 1024 * 1024      // 10 MB
+        keywords::rotation_size = 10 * 1024 * 1024      // 10 MiB
     );
 
     // Логирование балансов в файл
@@ -36,7 +36,7 @@ void init_logging()
         keywords::format = "[%TimeStamp%]: %Message%",
         keywords::open_mode = std::ios_base::app,       // Дозапись
         keywords::auto_flush = true,                    // Обновление лога после каждой записи
-        keywords::rotation_size = 10 * 1024 * 1024      // 10 MB
+        keywords::rotation_size = 10 * 1024 * 1024      // 10 MiB
     );
 
     // Логирование ордеров в файл
@@ -46,9 +46,18 @@ void init_logging()
         keywords::format = "[%TimeStamp%]: %Message%",
         keywords::open_mode = std::ios_base::app,       // Дозапись
         keywords::auto_flush = true,                    // Обновление лога после каждой записи
-        keywords::rotation_size = 10 * 1024 * 1024      // 10 MB
+        keywords::rotation_size = 10 * 1024 * 1024      // 10 MiB
     );
 
-    // TODO: Найти оптимальный размер ротации для каждого лога
-    // TODO: Отключить обновление лога после каждой записи, когда завершится этап отладки
+    // Логирование ошибок в файл
+    logging::add_file_log(
+        keywords::filter = a_channel == "errors",
+        keywords::file_name = "logs/errors.log",
+        keywords::format = "[%TimeStamp%]: %Message%",
+        keywords::open_mode = std::ios_base::app,       // Дозапись
+        keywords::auto_flush = true,                    // Обновление лога после каждой записи
+        keywords::rotation_size = 10 * 1024 * 1024      // 10 MiB
+    );
+
+    // TODO: Вынести конфигурацию для логирования в отдельный файл
 }

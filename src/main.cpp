@@ -1,4 +1,5 @@
-#include <iostream>
+#include <atomic>
+#include <memory>
 #include <sentry.h>
 #include "Core.h"
 #include "logging.h"
@@ -35,14 +36,15 @@ int main()
     // Рабочий цикл
     signal(SIGINT, sigint_handler);
     while (running)
-    {
         core->poll();
-    }
 
     sentry_close();
     return EXIT_SUCCESS;
 }
 
+/**
+ * Обработчик прерывания SIGINT
+ */
 void sigint_handler(int)
 {
     running = false;
