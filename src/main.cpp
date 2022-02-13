@@ -25,6 +25,7 @@ int main()
     sentry_options_add_attachment(options, "logs/orderbooks.log");
     sentry_options_add_attachment(options, "logs/balance.log");
     sentry_options_add_attachment(options, "logs/orders.log");
+    sentry_options_add_attachment(options, "logs/errors.log");
     sentry_init(options);
 
     // Инициализация Boost.Log
