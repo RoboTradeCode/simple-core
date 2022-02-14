@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_BUILD_TYPE Debug)
 
 find_package(Threads REQUIRED)
-find_package(Boost 1.78.0 REQUIRED COMPONENTS log_setup log)
+find_package(Boost 1.78.0 REQUIRED)
 
 # Aeron Utils
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/aeron_cpp EXCLUDE_FROM_ALL)
@@ -18,6 +18,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/sentry-native/include)
 # Simdjson
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/simdjson EXCLUDE_FROM_ALL)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/simdjson/include)
+
+# Spdlog
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/spdlog EXCLUDE_FROM_ALL)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/spdlog/include)
 
 # Toml++
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/tomlplusplus EXCLUDE_FROM_ALL)
@@ -38,12 +42,11 @@ add_executable(trade_core ${SOURCE} ${HEADERS})
 
 target_link_libraries(trade_core
     Threads::Threads
-    Boost::log_setup
-    Boost::log
     aeron_utils::aeron_utils
     aeron_client
     sentry::sentry
     simdjson::simdjson
+    spdlog::spdlog
     tomlplusplus::tomlplusplus)
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.toml ${CMAKE_CURRENT_BINARY_DIR}/config.toml COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.toml.example ${CMAKE_CURRENT_BINARY_DIR}/config.toml COPYONLY)

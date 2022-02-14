@@ -56,10 +56,10 @@ class Core : public std::enable_shared_from_this<Core>
     bool has_buy_order;
 
     // Логгеры
-    logger_t orderbooks_logger;
-    logger_t balance_logger;
-    logger_t orders_logger;
-    logger_t errors_logger;
+    std::shared_ptr<spdlog::logger> orderbooks_logger;
+    std::shared_ptr<spdlog::logger> balance_logger;
+    std::shared_ptr<spdlog::logger> orders_logger;
+    std::shared_ptr<spdlog::logger> errors_logger;
 
     /**
      * Функция обратного вызова для обработки баланса

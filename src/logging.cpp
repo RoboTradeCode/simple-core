@@ -1,63 +1,25 @@
 #include "logging.h"
 
-BOOST_LOG_ATTRIBUTE_KEYWORD(a_severity, "Severity", logging::trivial::severity_level)
-BOOST_LOG_ATTRIBUTE_KEYWORD(a_channel, "Channel", std::string)
-
 /**
  * Инициализация логирования
  */
 void init_logging()
 {
-    // Добавление поддержки %TimeStamp% в формате
-    logging::add_common_attributes();
+    // Параметры для логирования в файлы
+    int max_size = 1048576 * 5;  // 5 MiB
+    int max_files = 1;
 
-    // Логирование ордеров в стандартный поток вывода
-    logging::add_console_log(
-        std::cout,
-        keywords::filter = a_channel == "orders",
-        keywords::format = "[%TimeStamp%]: %Message%",
-        keywords::auto_flush = true                     // Обновление лога после каждой записи
-    );
+    // Логирование биржевых стаканов, баланса и ошибок
+    auto orderbooks = spdlog::rotating_logger_mt("orderbooks", "logs/orderbooks.log", max_size, max_files);
+    auto balance = spdlog::rotating_logger_mt("balance", "logs/balance.log", max_size, max_files);
+    auto errors = spdlog::rotating_logger_mt("errors", "logs/errors.log", max_size, max_files);
 
-    // Логирование биржевых стаканов в файл
-    logging::add_file_log(
-        keywords::filter = a_channel == "orderbooks",
-        keywords::file_name = "logs/orderbooks.log",
-        keywords::format = "[%TimeStamp%]: %Message%",
-        keywords::open_mode = std::ios_base::app,       // Дозапись
-        keywords::auto_flush = true,                    // Обновление лога после каждой записи
-        keywords::rotation_size = 10 * 1024 * 1024      // 10 MiB
-    );
-
-    // Логирование балансов в файл
-    logging::add_file_log(
-        keywords::filter = a_channel == "balances",
-        keywords::file_name = "logs/balances.log",
-        keywords::format = "[%TimeStamp%]: %Message%",
-        keywords::open_mode = std::ios_base::app,       // Дозапись
-        keywords::auto_flush = true,                    // Обновление лога после каждой записи
-        keywords::rotation_size = 10 * 1024 * 1024      // 10 MiB
-    );
-
-    // Логирование ордеров в файл
-    logging::add_file_log(
-        keywords::filter = a_channel == "orders",
-        keywords::file_name = "logs/orders.log",
-        keywords::format = "[%TimeStamp%]: %Message%",
-        keywords::open_mode = std::ios_base::app,       // Дозапись
-        keywords::auto_flush = true,                    // Обновление лога после каждой записи
-        keywords::rotation_size = 10 * 1024 * 1024      // 10 MiB
-    );
-
-    // Логирование ошибок в файл
-    logging::add_file_log(
-        keywords::filter = a_channel == "errors",
-        keywords::file_name = "logs/errors.log",
-        keywords::format = "[%TimeStamp%]: %Message%",
-        keywords::open_mode = std::ios_base::app,       // Дозапись
-        keywords::auto_flush = true,                    // Обновление лога после каждой записи
-        keywords::rotation_size = 10 * 1024 * 1024      // 10 MiB
-    );
-
-    // TODO: Вынести конфигурацию для логирования в отдельный файл
+    // Логирование ордеров
+    auto orders_file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/orders.log", max_size, max_files);
+    auto orders_stdout = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    std::vector<spdlog::sink_ptr> sinks;
+    sinks.push_back(orders_file);
+    sinks.push_back(orders_stdout);
+    auto orders = std::make_shared<spdlog::logger>("orders", begin(sinks), end(sinks));
+    spdlog::register_logger(orders);
 }

@@ -10,10 +10,10 @@ Core::Core(std::string_view config_file_path)
     : idle_strategy(std::chrono::milliseconds(DEFAULT_IDLE_STRATEGY_SLEEP_MS)),
       has_sell_order(false),
       has_buy_order(false),
-      orderbooks_logger(keywords::channel = "orderbooks"),
-      balance_logger(keywords::channel = "balances"),
-      orders_logger(keywords::channel = "orders"),
-      errors_logger(keywords::channel = "errors")
+      orderbooks_logger(spdlog::get("orderbooks")),
+      balance_logger(spdlog::get("balance")),
+      orders_logger(spdlog::get("orders")),
+      errors_logger(spdlog::get("errors"))
 {
     // Получение конфигурации
     core_config config = parse_config(config_file_path);
@@ -87,7 +87,7 @@ void Core::poll()
  */
 void Core::balance_handler(std::string_view message)
 {
-    BOOST_LOG_SEV(balance_logger, logging::trivial::info) << message;
+    balance_logger->info(message);
 
     try
     {
@@ -112,7 +112,7 @@ void Core::balance_handler(std::string_view message)
         sentry_event_add_exception(event, exc);
         sentry_capture_event(event);
 
-        BOOST_LOG_SEV(errors_logger, logging::trivial::error) << e.what();
+        errors_logger->error(e.what());
         errors_channel->offer(e.what());
     }
 }
@@ -124,7 +124,7 @@ void Core::balance_handler(std::string_view message)
  */
 void Core::orderbooks_handler(std::string_view message)
 {
-    BOOST_LOG_SEV(orderbooks_logger, logging::trivial::info) << message;
+    orderbooks_logger->info(message);
 
     try
     {
@@ -153,7 +153,7 @@ void Core::orderbooks_handler(std::string_view message)
         sentry_event_add_exception(event, exc);
         sentry_capture_event(event);
 
-        BOOST_LOG_SEV(errors_logger, logging::trivial::error) << e.what();
+        errors_logger->error(e.what());
         errors_channel->offer(e.what());
     }
 }
@@ -256,7 +256,7 @@ void Core::create_order(std::string_view side, const dec_float& price, const dec
         { "q", quantity.str() }
     }));
 
-    BOOST_LOG_SEV(orders_logger, logging::trivial::info) << message;
+    orders_logger->info(message);
     gateway_channel->offer(message);
 }
 
@@ -274,6 +274,6 @@ void Core::cancel_order(std::string_view side)
         { "s", side },
     }));
 
-    BOOST_LOG_SEV(orders_logger, logging::trivial::info) << message;
+    orders_logger->info(message);
     gateway_channel->offer(message);
 }
