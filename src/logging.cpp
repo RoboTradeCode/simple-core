@@ -22,4 +22,7 @@ void init_logging()
     sinks.push_back(orders_stdout);
     auto orders = std::make_shared<spdlog::logger>("orders", begin(sinks), end(sinks));
     spdlog::register_logger(orders);
+
+    // Параметры сброса буфера
+    spdlog::flush_every(std::chrono::seconds(5));
 }

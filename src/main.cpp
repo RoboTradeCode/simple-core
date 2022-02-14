@@ -27,7 +27,7 @@ int main()
     sentry_options_add_attachment(options, "logs/errors.log");
     sentry_init(options);
 
-    // Инициализация Boost.Log
+    // Инициализация логирования
     init_logging();
 
     // Инициализация ядра
