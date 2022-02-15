@@ -49,7 +49,7 @@ build/Debug:
 
 ### Конфигурация ядра
 
-Конфигурация хранится в файле [config.toml](config.toml) в формате [TOML](https://ru.wikipedia.org/wiki/TOML). Ядро
+Конфигурация хранится в файле [config.toml](config.toml.example) в формате [TOML](https://ru.wikipedia.org/wiki/TOML). Ядро
 будет искать её по относительному пути в рабочей директории. В процессе сборки конфигурация автоматически копируется к
 исполняемому файлу.
 
