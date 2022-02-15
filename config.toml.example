@@ -42,8 +42,8 @@
 
         # Publisher для отправки метрик
         [aeron.publishers.metrics]
-            channel = "aeron:udp?control=172.31.5.122:40456|control-mode=dynamic"
-            stream_id = 1004
+            channel = "aeron:udp?endpoint=3.66.183.27:44444"
+            stream_id = 1001
             buffer_size = 1400
 
         # Publisher для отправки ошибок

@@ -258,6 +258,7 @@ void Core::create_order(std::string_view side, const dec_float& price, const dec
 
     orders_logger->info(message);
     gateway_channel->offer(message);
+    metrics_channel->offer(message);
 }
 
 /**
@@ -276,4 +277,5 @@ void Core::cancel_order(std::string_view side)
 
     orders_logger->info(message);
     gateway_channel->offer(message);
+    metrics_channel->offer(message);
 }
