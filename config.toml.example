@@ -21,8 +21,9 @@
             channel = "aeron:udp?control-mode=manual"
             stream_id = 1001
             destinations = [
-                "aeron:udp?endpoint=172.31.5.122:40458|control=172.31.5.122:40456",
-                "aeron:udp?endpoint=172.31.5.122:40459|control=18.159.92.185:40456"
+                "aeron:udp?endpoint=172.31.14.205:40458|control=172.31.14.205:40456",
+                "aeron:udp?endpoint=172.31.14.205:40459|control=18.159.92.185:40456",
+                "aeron:udp?endpoint=172.31.14.205:40460|control=54.248.171.18:40456"
             ]
 
         # Subscriber для приёма баланса
@@ -30,13 +31,13 @@
             channel = "aeron:udp?control-mode=manual"
             stream_id = 1002
             destinations = [
-                "aeron:udp?endpoint=172.31.5.122:40460|control=172.31.5.122:40456"
+                "aeron:udp?endpoint=172.31.14.205:40461|control=172.31.14.205:40456"
             ]
 
     [aeron.publishers]
         # Publisher для отправки ордеров
         [aeron.publishers.gateway]
-            channel = "aeron:udp?control=172.31.5.122:40456|control-mode=dynamic"
+            channel = "aeron:udp?control=172.31.14.205:40456|control-mode=dynamic"
             stream_id = 1003
             buffer_size = 1400
 
@@ -48,6 +49,6 @@
 
         # Publisher для отправки ошибок
         [aeron.publishers.errors]
-            channel = "aeron:udp?control=172.31.5.122:40456|control-mode=dynamic"
+            channel = "aeron:udp?control=172.31.14.205:40456|control-mode=dynamic"
             stream_id = 1005
             buffer_size = 1400
