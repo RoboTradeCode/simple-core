@@ -7,7 +7,7 @@ set(CMAKE_BUILD_TYPE Debug)
 find_package(Threads REQUIRED)
 find_package(Boost 1.78.0 REQUIRED)
 
-# Aeron Utils
+# AeronCpp
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/aeron_cpp EXCLUDE_FROM_ALL)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/aeron_cpp/src)
 
@@ -42,7 +42,7 @@ add_executable(trade_core ${SOURCE} ${HEADERS})
 
 target_link_libraries(trade_core
     Threads::Threads
-    aeron_utils::aeron_utils
+    aeron_cpp::aeron_cpp
     aeron_client
     sentry::sentry
     simdjson::simdjson
