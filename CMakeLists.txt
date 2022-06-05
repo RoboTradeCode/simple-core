@@ -6,6 +6,7 @@ set(CMAKE_BUILD_TYPE Debug)
 
 find_package(Threads REQUIRED)
 find_package(Boost 1.78.0 REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 # AeronCpp
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/aeron_cpp EXCLUDE_FROM_ALL)
@@ -29,19 +30,26 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/tomlplusplus/include)
 
 SET(SOURCE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Core.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/logging.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/logging.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/HTTP.cpp)
 
 SET(HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Core.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/config.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/logging.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/config.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/logging.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/json.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/HTTP.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/error.hpp)
 
 add_executable(trade_core ${SOURCE} ${HEADERS})
 
 target_link_libraries(trade_core
     Threads::Threads
+    OpenSSL::SSL
     aeron_cpp::aeron_cpp
     aeron_client
     sentry::sentry

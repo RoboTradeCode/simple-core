@@ -1,4 +1,4 @@
-#include "logging.h"
+#include "logging.hpp"
 
 /**
  * Инициализация логирования
@@ -19,8 +19,8 @@ void init_logging()
 
     // Логирование баланса и ошибок
     auto balance = spdlog::rotating_logger_mt<spdlog::async_factory>(
-        "balance",
-        "logs/balance.log",
+        "balances",
+        "logs/balances.log",
         max_size,
         max_files
     );
@@ -41,6 +41,15 @@ void init_logging()
     orders_sinks.push_back(orders_stdout);
     auto orders = std::make_shared<spdlog::logger>("orders", begin(orders_sinks), end(orders_sinks));
     spdlog::register_logger(orders);
+
+    // Логирование основных действий
+    std::vector<spdlog::sink_ptr> general_sinks;
+    auto general_file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/general.log", max_size, max_files);
+    auto general_stdout = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    general_sinks.push_back(general_file);
+    general_sinks.push_back(general_stdout);
+    auto general = std::make_shared<spdlog::logger>("general", begin(general_sinks), end(general_sinks));
+    spdlog::register_logger(general);
 
     // Политика сброса буфера
     spdlog::flush_every(std::chrono::seconds(5));

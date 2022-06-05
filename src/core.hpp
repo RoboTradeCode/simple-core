@@ -1,0 +1,207 @@
+#ifndef TRADE_CORE_CORE_H
+#define TRADE_CORE_CORE_H
+
+#include <functional>
+#include <simdjson.h>
+#include <chrono>
+#include <sentry.h>
+#include "json.hpp"
+#include <Subscriber.h>
+#include <Publisher.h>
+#include "config.hpp"
+#include "logging.hpp"
+#include "utils.hpp"
+#include "error.hpp"
+#include "HTTP.hpp"
+
+
+namespace beast = boost::beast;
+namespace http  = beast::http;
+namespace net   = boost::asio;
+namespace ssl   = boost::asio::ssl;
+using     tcp   = boost::asio::ip::tcp;
+
+using JSON = nlohmann::json;
+
+/**
+ * Торговое ядро
+ *
+ * @note Использует протокол Aeron, медиа-драйвер которого заранее должен быть запущен
+ */
+class core : public std::enable_shared_from_this<core>
+{
+    // Каналы Aeron
+    std::shared_ptr<Subscriber> _orderbooks_channel;
+    std::shared_ptr<Subscriber> _balance_channel;
+    std::shared_ptr<Subscriber> _order_status_channel;
+    std::shared_ptr<Publisher>  _gateway_channel;
+    //std::shared_ptr<Publisher> metrics_channel;     // TODO: Отправлять метрики
+    //std::shared_ptr<Publisher> errors_channel;
+
+    // конфиг по умолчанию (всегда лежит вместе с исполняемым файлом)
+    core_config _default_config;
+    // рабочий конфиг
+    core_config _work_config;
+
+    // Стратегия ожидания Aeron
+    aeron::SleepingIdleStrategy idle_strategy;
+
+    // Пороговые значения для инструментов
+    //dec_float BTC_THRESHOLD;
+    //dec_float USDT_THRESHOLD;
+
+    // Коэффициенты для вычисления цены ордеров
+    dec_float _SELL_RATIO;
+    dec_float _BUY_RATIO;
+
+    // Коэффициенты для вычисления границ удержания ордеров
+    dec_float _LOWER_BOUND_RATIO;
+    dec_float _UPPER_BOUND_RATIO;
+
+    // разрядность цены
+    //uint16_t  _price_precission;
+    // разрядность объема
+    //uint16_t  _size_precision;
+
+    // Последние данные о балансе и ордербуках
+    //std::map<std::string, dec_float> _balance;
+    std::map<std::string, double> _balance;
+    std::map<std::string, std::map<std::string, std::pair<dec_float, dec_float>>> _orderbooks;
+    // ключ "BTC/USDT" - значение кортеж (пара: базовый ассет и котируемый ассет, price_increment, amount_increment)
+    std::map<std::string,                               // валютная пара
+           std::tuple<
+                  std::pair<std::string, std::string>,  // базовый ассет/котируемый ассет
+                  std::pair<dec_float, dec_float>,      // граница min_ask/max_ask
+                  std::pair<dec_float, dec_float>,      // граница min_bid/max_bid
+                  double,                               // price_increment
+                  double                                // amount_increment
+    >> _markets;
+
+    std::map<std::string, std::pair<int, int>> _precission;
+
+
+    std::map<std::string, std::pair<int64_t, bool>> _orders_for_sell;
+    std::map<std::string, std::pair<int64_t, bool>> _orders_for_buy;
+
+    // флаг наличия балансов
+    bool _has_balance = false;
+
+    // Логгеры
+    std::shared_ptr<spdlog::logger> _general_logger;
+    std::shared_ptr<spdlog::logger> orderbooks_logger;
+    std::shared_ptr<spdlog::logger> _balances_logger;
+    std::shared_ptr<spdlog::logger> _orders_logger;
+    std::shared_ptr<spdlog::logger> _errors_logger;
+
+    // константы ошибок aeron
+    const char* BACK_PRESSURED_DESCRIPTION     = "Offer failed due to back pressure.";
+    const char* NOT_CONNECTED_DESCRIPTION      = "Offer failed because publisher is not connected to a core.";
+    const char* ADMIN_ACTION_DESCRIPTION       = "Offer failed because of an administration action in the system.";
+    const char* PUBLICATION_CLOSED_DESCRIPTION = "Offer failed because publication is closed.";
+    const char* UNKNOWN_DESCRIPTION            = "Offer failed due to unknkown reason.";
+
+    // содержит предыдущее успешно отправленную команду в гейт
+    std::string     _prev_command_message = "none";
+    // флаг успешного получения конфига
+    bool        _config_was_received = false;
+
+    /**
+     * Функция обратного вызова для обработки баланса
+     *
+     * @param message Баланс в формате JSON
+     */
+    void balance_handler(std::string_view message_);
+
+    /**
+     * Функция обратного вызова для обработки биржевых стаканов
+     *
+     * @param message Биржевой стакан в формате JSON
+     */
+    void orderbooks_handler(std::string_view message_);
+
+    /**
+     * Функция обратного вызова для обработки статуса ордеров
+     *
+     * @param message стаус ордера в формате JSON
+     */
+    void order_status_handler(std::string_view message_);
+    /**
+     * Проверить условия для создания и отмены ордеров
+     */
+    void process_orders();
+
+    /**
+     * Рассчитать среднее арифметическое лучших ордеров для тикера
+     *
+     * @param ticker Тикер
+     * @return Пара, содержащая цену покупки и продажи соответственно
+     */
+    std::pair<dec_float, dec_float> avg_orderbooks(const std::string& ticker_);
+    //std::pair<double, double> avg_orderbooks(const std::string& ticker);
+
+    /**
+     * Создать ордер
+     *
+     * @param side Тип ордера
+     * @param price Цена
+     * @param quantity Объём
+     */
+    void create_order(std::string_view side_, const std::string& symbol_, const dec_float& price_, const dec_float& quantity_, double price_precission_, double amount_precission_);
+    //void create_order(std::string_view side, const double& price, const double& quantity);
+
+    /**
+     * Отменить все ордера
+     *
+     * @param side Тип ордера
+     */
+    void cancel_all_orders(std::string_view side_);
+    /**
+     * Отменить ордер
+     *
+     * @param side Тип ордера
+     */
+    void cancel_order(std::string_view side_, std::string ticker_, int64_t id_);
+
+    // отправляет запрос на отмену всех ордеров
+    void    send_cancel_all_orders_request();
+    // отправляет запрос на получение балансов
+    void    send_get_balances_request();
+    // обрабатывает и логирует ошибку от каналов aeron
+    void    processing_error(std::string_view error_source_, const std::string& prev_messsage_, const std::int64_t& error_code_);
+    // загружет конфиг из json
+    bool    load_config_from_json(const std::string& message_, bss::error& error_) noexcept;
+
+public:
+    // для получения конфига с сервера
+    util::HTTPSession http_session;
+    /**
+     * Создать экземпляр торгового ядра и подключиться к каналам Aeron
+     *
+     * @param config_file_path Путь к файлу конфигурации в формате TOML
+     */
+    explicit core(std::string config_file_path_);
+
+    /**
+     * Проверить каналы Aeron на наличие новых сообщений
+     */
+    void poll();
+
+    bool        create_aeron_agent_channels();
+    // загружает конфиг из файла
+    bool        load_config_from_file(bss::error& error_);
+    // получает источник получения конфига
+    std::string get_config_source();
+    // посылает ошибку в консоль и лог
+    void        send_error(std::string_view error_);
+    // посылает сообщение в консоль и лог
+    void        send_message(std::string_view message_);
+    // подготавливает к запуску
+    bool        prepatation_for_launch();
+    // проверяет получен ли конфиг
+    bool        has_config();
+    // получает конфиг непосредственно с сервера
+    bool        get_config_from_api(bss::error& error_);
+};
+
+
+#endif  // TRADE_CORE_CORE_H
