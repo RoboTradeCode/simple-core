@@ -570,7 +570,6 @@ void core::send_get_balances_request(){
     data["assets"] = assets;
     get_balances_request["data"]  = data;
 
-    std::cout << get_balances_request.dump() << std::endl;
     int64_t result = _gateway_channel->offer(get_balances_request.dump());
     if (result < 0) {
         processing_error("Ошибка отправки запроса на получение балансов: ", "none", result);

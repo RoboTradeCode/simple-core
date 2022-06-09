@@ -4,6 +4,10 @@
 #include <functional>
 #include <simdjson.h>
 #include <chrono>
+//#include <uuid/uuid.h>
+#include <boost/uuid/uuid.hpp>            // uuid class
+#include <boost/uuid/uuid_generators.hpp> // generators
+#include <boost/uuid/uuid_io.hpp>         // streaming operators etc.
 #include <sentry.h>
 #include "json.hpp"
 #include <Subscriber.h>
@@ -39,9 +43,9 @@ class core : public std::enable_shared_from_this<core>
     //std::shared_ptr<Publisher> errors_channel;
 
     // конфиг по умолчанию (всегда лежит вместе с исполняемым файлом)
-    core_config _default_config;
+    core_config                 _default_config;
     // рабочий конфиг
-    core_config _work_config;
+    core_config                 _work_config;
 
     // Стратегия ожидания Aeron
     aeron::SleepingIdleStrategy idle_strategy;
@@ -82,6 +86,17 @@ class core : public std::enable_shared_from_this<core>
 
     std::map<std::string, std::pair<int64_t, bool>> _orders_for_sell;
     std::map<std::string, std::pair<int64_t, bool>> _orders_for_buy;
+
+    // словарь идентификаторов ордеров
+    std::map<std::string,               // идентификатор ордера
+            std::tuple<
+                std::string,            // валютная пара
+                std::string,            // сделка (sell, buy)
+                std::chrono::time_point<std::chrono::system_clock>,// время создания ордера
+                bool                    // флаг отправки запроса статуса ордера
+    >> _clients_id;
+
+    std::map<std::string, std::string> _test;
 
     // флаг наличия балансов
     bool _has_balance = false;
@@ -146,7 +161,7 @@ class core : public std::enable_shared_from_this<core>
      * @param price Цена
      * @param quantity Объём
      */
-    void create_order(std::string_view side_, const std::string& symbol_, const dec_float& price_, const dec_float& quantity_, double price_precission_, double amount_precission_);
+    std::string create_order(std::string_view side_, const std::string& symbol_, const dec_float& price_, const dec_float& quantity_, double price_precission_, double amount_precission_);
     //void create_order(std::string_view side, const double& price, const double& quantity);
 
     /**
@@ -166,10 +181,15 @@ class core : public std::enable_shared_from_this<core>
     void    send_cancel_all_orders_request();
     // отправляет запрос на получение балансов
     void    send_get_balances_request();
+    // отправляет запрос на получение статуса ордера
+    void    send_get_order_status_request(const std::string& order_id_);
+    void    send_get_order_status_by_client_id_request(const std::string& client_id_);
     // обрабатывает и логирует ошибку от каналов aeron
     void    processing_error(std::string_view error_source_, const std::string& prev_messsage_, const std::int64_t& error_code_);
     // загружет конфиг из json
     bool    load_config_from_json(const std::string& message_, bss::error& error_) noexcept;
+    //  генерирует идентификатор ордера
+    std::string    create_client_id();
 
 public:
     // для получения конфига с сервера

@@ -30,12 +30,16 @@ struct core_config
     std::string config_uri;
     std::string config_target;
 
+    // список ассетов
+    std::vector<std::string> _assets;
+
     struct exchange
     {
         // имя биржы
         std::string name;
-        int         instance;
+        std::string instance;
         std::string node;
+        std::string algo;
 
         // Пороговые значения для инструментов
         std::string btc_threshold;
