@@ -55,22 +55,26 @@ class core : public std::enable_shared_from_this<core>
     //dec_float USDT_THRESHOLD;
 
     // Коэффициенты для вычисления цены ордеров
-    dec_float _SELL_RATIO;
-    dec_float _BUY_RATIO;
+    dec_float                   _SELL_RATIO;
+    dec_float                   _BUY_RATIO;
 
     // Коэффициенты для вычисления границ удержания ордеров
-    dec_float _LOWER_BOUND_RATIO;
-    dec_float _UPPER_BOUND_RATIO;
+    dec_float                   _LOWER_BOUND_RATIO;
+    dec_float                   _UPPER_BOUND_RATIO;
 
     // разрядность цены
     //uint16_t  _price_precission;
     // разрядность объема
     //uint16_t  _size_precision;
 
-    // Последние данные о балансе и ордербуках
+    // Последние данные о балансе
     //std::map<std::string, dec_float> _balance;
     std::map<std::string, double> _balance;
+
+    // Последние данные о ордербуках
     std::map<std::string, std::map<std::string, std::pair<dec_float, dec_float>>> _orderbooks;
+
+    // словарь рынков
     // ключ "BTC/USDT" - значение кортеж (пара: базовый ассет и котируемый ассет, price_increment, amount_increment)
     std::map<std::string,                               // валютная пара
            std::tuple<
@@ -81,7 +85,7 @@ class core : public std::enable_shared_from_this<core>
                   double                                // amount_increment
     >> _markets;
 
-    std::map<std::string, std::pair<int, int>> _precission;
+    //std::map<std::string, std::pair<int, int>> _precission;
 
 
     std::map<std::string, std::pair<int64_t, bool>> _orders_for_sell;
@@ -96,7 +100,7 @@ class core : public std::enable_shared_from_this<core>
                 bool                    // флаг отправки запроса статуса ордера
     >> _clients_id;
 
-    std::map<std::string, std::string> _test;
+    //std::map<std::string, std::string> _test;
 
     // флаг наличия балансов
     bool _has_balance = false;
@@ -152,7 +156,6 @@ class core : public std::enable_shared_from_this<core>
      * @return Пара, содержащая цену покупки и продажи соответственно
      */
     std::pair<dec_float, dec_float> avg_orderbooks(const std::string& ticker_);
-    //std::pair<double, double> avg_orderbooks(const std::string& ticker);
 
     /**
      * Создать ордер
@@ -162,7 +165,6 @@ class core : public std::enable_shared_from_this<core>
      * @param quantity Объём
      */
     std::string create_order(std::string_view side_, const std::string& symbol_, const dec_float& price_, const dec_float& quantity_, double price_precission_, double amount_precission_);
-    //void create_order(std::string_view side, const double& price, const double& quantity);
 
     /**
      * Отменить все ордера
@@ -216,7 +218,7 @@ public:
     // посылает сообщение в консоль и лог
     void        send_message(std::string_view message_);
     // подготавливает к запуску
-    bool        prepatation_for_launch();
+    bool        prepatation_for_launch(bss::error& error_);
     // проверяет получен ли конфиг
     bool        has_config();
     // получает конфиг непосредственно с сервера

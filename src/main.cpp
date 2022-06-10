@@ -64,7 +64,7 @@ int main()
         return EXIT_FAILURE;
     }
     // продолжаем подготовку к запуску
-    if (not trade_core->prepatation_for_launch()) {
+    if (not trade_core->prepatation_for_launch(error)) {
         return EXIT_FAILURE;
     }
     // Рабочий цикл

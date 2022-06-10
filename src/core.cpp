@@ -2,7 +2,7 @@
 #include "core.hpp"
 
 /**
- * Создать экземпляр торгового ядра и подключиться к каналам Aeron
+ * Создает экземпляр торгового ядра
  *
  * @param config_file_path Путь к файлу конфигурации в формате TOML
  */
@@ -12,8 +12,8 @@ core::core(std::string config_file_path_)
       _balances_logger(spdlog::get("balances")),
       _orders_logger(spdlog::get("orders")),
       _errors_logger(spdlog::get("errors")),
-      _general_logger(spdlog::get("general"))
-{
+      _general_logger(spdlog::get("general")) {
+
     _general_logger->info("Core starting...");
     // Получение дефолтной конфигурации
     _default_config = parse_config(config_file_path_);
@@ -21,7 +21,7 @@ core::core(std::string config_file_path_)
 //---------------------------------------------------------------
 // подготавливает к запуску
 //---------------------------------------------------------------
-bool core::prepatation_for_launch() {
+bool core::prepatation_for_launch(bss::error& error_) {
     // Сокращения для удобства доступа
     //auto exchange       = _work_config.exchange;
     auto aeron          = _work_config.aeron;
@@ -32,25 +32,51 @@ bool core::prepatation_for_launch() {
     //auto errors         = publishers.errors;
 
     // Инициализация каналов Aeron
-    _orderbooks_channel = std::make_shared<Subscriber>(
-        [&](std::string_view message_)
-        { shared_from_this()->orderbooks_handler(message_); },
-        subscribers.orderbooks.channel,
-        subscribers.orderbooks.stream_id
-    );
-    _balance_channel = std::make_shared<Subscriber>(
-        [&](std::string_view message_)
-        { shared_from_this()->balance_handler(message_); },
-        subscribers.balances.channel,
-        subscribers.balances.stream_id
-    );
-    _order_status_channel = std::make_shared<Subscriber>(
-        [&](std::string_view message_)
-        { shared_from_this()->order_status_handler(message_); },
-        subscribers.order_statuses.channel,
-        subscribers.order_statuses.stream_id
-    );
-    _gateway_channel = std::make_shared<Publisher>(gateway.channel, gateway.stream_id);
+    try {
+        _orderbooks_channel = std::make_shared<Subscriber>(
+            [&](std::string_view message_)
+            { shared_from_this()->orderbooks_handler(message_); },
+            subscribers.orderbooks.channel,
+            subscribers.orderbooks.stream_id
+        );
+    } catch (const std::exception& err) {
+        error_.describe(fmt::format("Канал для приема ордербуков не создан: {}", err.what()));
+        _general_logger->error(error_.to_string());
+        return false;
+    }
+
+    try {
+        _balance_channel = std::make_shared<Subscriber>(
+            [&](std::string_view message_)
+            { shared_from_this()->balance_handler(message_); },
+            subscribers.balances.channel,
+            subscribers.balances.stream_id
+        );
+    } catch (const std::exception& err) {
+        error_.describe(fmt::format("Канал для приема баланса не создан: {}", err.what()));
+        _general_logger->error(error_.to_string());
+        return false;
+    }
+    try {
+        _order_status_channel = std::make_shared<Subscriber>(
+            [&](std::string_view message_)
+            { shared_from_this()->order_status_handler(message_); },
+            subscribers.order_statuses.channel,
+            subscribers.order_statuses.stream_id
+        );
+    } catch (const std::exception& err) {
+        error_.describe(fmt::format("Канал для приема статуса ордеров не создан: {}", err.what()));
+        _general_logger->error(error_.to_string());
+        return false;
+    }
+    try {
+        _gateway_channel = std::make_shared<Publisher>(gateway.channel, gateway.stream_id);
+    } catch (const std::exception& err) {
+        error_.describe(fmt::format("Канал для отправки команд не создан: {}", err.what()));
+        _general_logger->error(error_.to_string());
+        return false;
+    }
+
     //metrics_channel = std::make_shared<Publisher>(metrics.channel, metrics.stream_id, metrics.buffer_size);
     //errors_channel = std::make_shared<Publisher>(errors.channel, errors.stream_id, errors.buffer_size);
 
@@ -58,12 +84,6 @@ bool core::prepatation_for_launch() {
     send_cancel_all_orders_request();
     // запрашиваем баланс
     send_get_balances_request();
-    //=======================
-    /*_orderbooks["ftx"]["BTC/USDT"] = std::make_pair(dec_float(30000), dec_float(25000));
-    _orderbooks["binance"]["BTC/USDT"] = std::make_pair(dec_float(20000), dec_float(15000));
-    std::pair<dec_float, dec_float> avg = avg_orderbooks("BTC/USDT");
-    std::cout << avg.first << " " << avg.second << std::endl;*/
-    //=======================
     // Подписка на Publisher'ов
     for (const std::string& channel: subscribers.orderbooks.destinations)
         _orderbooks_channel->add_destination(channel);
@@ -90,16 +110,12 @@ bool core::prepatation_for_launch() {
     //UPPER_BOUND_RATIO = dec_float(exchange.upper_bound_ratio);
     _UPPER_BOUND_RATIO = dec_float(1.0005);
 
-    // получим шаг цены и объема
-    //_price_precission = utils::get_precission(exchange.price_increment);
-    //_size_precision   = utils::get_precission(exchange.size_increment);
-
     return true;
 }
 //---------------------------------------------------------------
 // загружает конфиг из файла
 //---------------------------------------------------------------
-bool core::load_config_from_file(bss::error& error_){
+bool core::load_config_from_file(bss::error& error_) {
     // создаем парсер
     simdjson::dom::parser parser;
     // скажем парсеру, чтобы он подготовил буфер для своих внутренних нужд (если будет меньше 0x08, то будет ошибка)
@@ -191,8 +207,8 @@ bool core::load_config_from_file(bss::error& error_){
                     } else {
                         error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][gate][channel]\".");
                     }
-                    if (auto gate__stream_element{cfg["aeron"]["publishers"]["gate"]["stream_id"].get_int64()}; simdjson::SUCCESS == gate__stream_element.error()) {
-                        _work_config.aeron.publishers.gateway.stream_id = gate__stream_element.value();
+                    if (auto gate_stream_element{cfg["aeron"]["publishers"]["gate"]["stream_id"].get_int64()}; simdjson::SUCCESS == gate_stream_element.error()) {
+                        _work_config.aeron.publishers.gateway.stream_id = gate_stream_element.value();
                     } else {
                         error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][gate][stream_id]\".");
                     }
@@ -251,7 +267,7 @@ bool core::load_config_from_file(bss::error& error_){
                         error_.describe("При загрузке конфигурации из файла в теле json не найден оъект \"[aeron][subscribers][orders_statuses][stream_id]\".");
                     }
                 } else {
-                    error_.describe("При загрузке конфигурации в теле json не найден оъект [\"data\"][\"gate_config\"].");
+                    error_.describe("При загрузке конфигурации в теле json не найден оъект [\"data\"][\"core_config\"].");
                 }
             } else {
                 error_.describe(fmt::format("Ошибка разбора json фрейма в процессе парсинга конфига. Код ошибки: {}.", result.error()));
@@ -427,7 +443,7 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
                         error_.describe("При загрузке конфигурации из файла в теле json не найден оъект \"[aeron][subscribers][orders_statuses][stream_id]\".");
                     }
                 } else {
-                    error_.describe("При загрузке конфигурации в теле json не найден оъект [\"data\"][\"gate_config\"].");
+                    error_.describe("При загрузке конфигурации в теле json не найден оъект [\"data\"][\"core_config\"].");
                 }
             } else {
                 error_.describe(fmt::format("Ошибка разбора json фрейма в процессе парсинга конфига. Код ошибки: {}.", result.error()));
@@ -447,7 +463,7 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
 //---------------------------------------------------------------
 // отправляет запрос на отмену всех ордеров
 //---------------------------------------------------------------
-void core::send_cancel_all_orders_request(){
+void core::send_cancel_all_orders_request() {
 
     JSON cancel_orders_request;
     cancel_orders_request["event"]       = "command";
@@ -455,7 +471,7 @@ void core::send_cancel_all_orders_request(){
     cancel_orders_request["node"]        = "core";
     cancel_orders_request["instance"]    = _work_config.exchange.instance;
     cancel_orders_request["action"]      = "cancel_all_orders";
-    cancel_orders_request["message"]     = "";
+    cancel_orders_request["message"]     = nullptr;
     cancel_orders_request["algo"]        = _work_config.exchange.algo;
     cancel_orders_request["timestamp"]   = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     cancel_orders_request["data"]        = nullptr;
@@ -486,7 +502,7 @@ void core::send_get_order_status_by_client_id_request(const std::string &client_
     get_order_status_request["node"]        = "core";
     get_order_status_request["instance"]    = _work_config.exchange.instance;
     get_order_status_request["action"]      = "order_status";
-    get_order_status_request["message"]     = NULL;
+    get_order_status_request["message"]     = nullptr;
     get_order_status_request["algo"]        = _work_config.exchange.algo;
     get_order_status_request["timestamp"]   = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -520,7 +536,7 @@ void core::send_get_order_status_request(const std::string &order_id_) {
     get_order_status_request["node"]        = "core";
     get_order_status_request["instance"]    = _work_config.exchange.instance;
     get_order_status_request["action"]      = "order_status";
-    get_order_status_request["message"]     = NULL;
+    get_order_status_request["message"]     = nullptr;
     get_order_status_request["algo"]        = _work_config.exchange.algo;
     get_order_status_request["timestamp"]   = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -547,7 +563,7 @@ void core::send_get_order_status_request(const std::string &order_id_) {
 //---------------------------------------------------------------
 // отправляет запрос на получение балансов
 //---------------------------------------------------------------
-void core::send_get_balances_request(){
+void core::send_get_balances_request() {
 
     JSON get_balances_request;
     get_balances_request["event"]       = "command";
@@ -555,7 +571,7 @@ void core::send_get_balances_request(){
     get_balances_request["node"]        = "core";
     get_balances_request["instance"]    = _work_config.exchange.instance;
     get_balances_request["action"]      = "get_balances";
-    get_balances_request["message"]     = "";
+    get_balances_request["message"]     = nullptr;
     get_balances_request["algo"]        = _work_config.exchange.algo;
     get_balances_request["timestamp"]   = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     //get_balances_request["data"]        = nullptr;
@@ -570,7 +586,6 @@ void core::send_get_balances_request(){
     data["assets"] = assets;
     get_balances_request["data"]  = data;
 
-    std::cout << get_balances_request.dump() << std::endl;
     int64_t result = _gateway_channel->offer(get_balances_request.dump());
     if (result < 0) {
         processing_error("Ошибка отправки запроса на получение балансов: ", "none", result);
@@ -606,8 +621,7 @@ void core::processing_error(std::string_view error_source_, const std::string& p
 /**
  * Проверить каналы Aeron на наличие новых сообщений
  */
-void core::poll()
-{
+void core::poll() {
     // Опрос каналов
     int fragments_read_orderbooks     = _orderbooks_channel->poll();
     int fragments_read_balance        = _balance_channel->poll();
@@ -623,8 +637,7 @@ void core::poll()
  *
  * @param message Баланс в формате JSON
  */
-void core::balance_handler(std::string_view message_)
-{
+void core::balance_handler(std::string_view message_) {
     //std::cout << message_ << std::endl;
     _balances_logger->info(message_);
 
@@ -649,8 +662,6 @@ void core::balance_handler(std::string_view message_)
                             double free;
                             std::string_view asset_value;
                             for (auto asset : data_element_objects) {
-                                //std::cout << asset.unescaped_key() << std::endl;
-
                                 asset_value = asset.unescaped_key();
                                 if (auto asset_free_element_array{parse_result["data"][asset_value]["free"].get_double()}; simdjson::SUCCESS == asset_free_element_array.error()) {
                                     free = asset_free_element_array.value();
@@ -664,16 +675,16 @@ void core::balance_handler(std::string_view message_)
                         }
 
                     } else {
-                        std::cout << "поле action содержит значение: " << action_element.value() << std::endl;
+                        _errors_logger->error("(balance_handler) Поле \"action\" содержит значение: {}", action_element.value());
                     }
                 } else {
-                    std::cout << "Ошибка получения поля action" << std::endl;
+                    _errors_logger->error("(balance_handler) Поле \"action\" отсутствует");
                 }
             } else {
-                std::cout << "поле event содержит значение: " << event_element.value() << std::endl;
+                _errors_logger->error("(balance_handler) Поле \"event\" содержит значение: {}", event_element.value());
             }
         } else {
-            std::cout << "Ошибка получения поля event" << std::endl;
+            _errors_logger->error("(balance_handler) Поле \"event\" отсутствует");
         }
     }
 }
@@ -684,8 +695,8 @@ void core::balance_handler(std::string_view message_)
  */
 void core::order_status_handler(std::string_view message_) {
 
-    //std::cout << "************************ order_status_handler: " << message_ << std::endl;
-    std::cout << "<<<--------<<<---------<<<"<< std::endl;
+    //std::cout << "<<<--------<<<---------<<<"<< std::endl;
+    _general_logger->info("<<<--------<<<---------<<<");
     _general_logger->info(message_);
     // Создадим парсер.
     simdjson::ondemand::parser parser;
@@ -718,16 +729,19 @@ void core::order_status_handler(std::string_view message_) {
                         }  else {}
                         if (side == "sell") {
                             _orders_for_sell[symbol].first = id;
-                            std::cout << "добавили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
+                //            std::cout << "добавили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
+                            _general_logger->info("добавили в _sell_orders id: {}. Содержит {} элементов.", id, _orders_for_sell.size());
                         } else if (side == "buy") {
                             _orders_for_buy[symbol].first = id;
-                            std::cout << "добавили в _buy_orders id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
+                            //std::cout << "добавили в _buy_orders id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
+                            _general_logger->info("добавили в _buy_orders id: {}. Содержит {} элементов.", id, _orders_for_buy.size());
                         }
                         // независимо от side удаляем из словаря по client_id
                         auto find_client_id = _clients_id.find(client_id);
                         if (find_client_id != _clients_id.end()) {
                             _clients_id.erase(find_client_id);
-                            std::cout << "удалили из _clients_id: " << client_id << std::endl;
+                   //         std::cout << "удалили из _clients_id: " << client_id << std::endl;
+                            _general_logger->info("удалили из _clients_id: {}", client_id);
                         }
                     } else if (action_element.value() == "order_cancel") {
                         // был отменен ордер
@@ -745,28 +759,31 @@ void core::order_status_handler(std::string_view message_) {
                         }  else {}
                         if (side == "sell") {
                             _orders_for_sell[symbol].first = 0;
-                            std::cout << "обнулили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
+                            //std::cout << "обнулили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
+                            _general_logger->info("обнулили в _orders_for_sell id: {}. Содержит {}", id, _orders_for_sell.size());
                         } else if (side == "buy") {
                             _orders_for_buy[symbol].first = 0;
-                            std::cout << "обнулили в _orders_for_buy id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
+                            //std::cout << "обнулили в _orders_for_buy id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
+                            _general_logger->info("обнулили в _orders_for_buy id: {}. Содержит {}", id, _orders_for_buy.size() );
                         }
                         // независимо от side удаляем из словаря по client_id
                         auto find_client_id = _clients_id.find(client_id);
                         if (find_client_id != _clients_id.end()) {
                             _clients_id.erase(find_client_id);
-                            std::cout << "удалили из _clients_id: " << client_id << std::endl;
+                            //std::cout << "удалили из _clients_id: " << client_id << std::endl;
+                            _general_logger->info("удалили из _clients_id: {}", client_id);
                         }
                     } else {
-                        std::cout << "поле action содержит значение: " << action_element.value() << std::endl;
+                        _errors_logger->error("(order_status_handler) Поле \"action\" содержит значение: {}", action_element.value());
                     }
                 } else {
-                    std::cout << "Ошибка получения поля action" << std::endl;
+                   _errors_logger->error("(order_status_handler) Поле \"action\" отсутствует");
                 }
             } else {
-                std::cout << "поле event содержит значение: " << event_element.value() << std::endl;
+                _errors_logger->error("(order_status_handler) Поле \"event\" содержит значение: {}", event_element.value());
             }
         } else {
-            std::cout << "Ошибка получения поля event" << std::endl;
+            _errors_logger->error("(order_status_handler) Поле \"event\" отсутствует");
         }
     }
 }
@@ -775,8 +792,7 @@ void core::order_status_handler(std::string_view message_) {
  *
  * @param message Биржевой стакан в формате JSON
  */
-void core::orderbooks_handler(std::string_view message_)
-{
+void core::orderbooks_handler(std::string_view message_) {
     //std::cout << "--------------------------------------" << std::endl;
     //std::cout << "orderbooks_handler " << message_ << std::endl;
     //std::cout << "--------------------------------------" << std::endl;
@@ -818,7 +834,6 @@ void core::orderbooks_handler(std::string_view message_)
                         if (auto symbol_element{parse_result["data"]["symbol"].get_string()}; simdjson::SUCCESS == symbol_element.error()) {
                             ticker = symbol_element.value();
                         } else {}
-                        //std::cout << exchange << " " << ticker << std::endl;
                         // Обновление сохранённого ордербука
                         _orderbooks[exchange][ticker] = std::make_pair(best_ask, best_bid);
 
@@ -836,21 +851,22 @@ void core::orderbooks_handler(std::string_view message_)
 /**
  * Проверить условия для создания и отмены ордеров
  */
-void core::process_orders()
-{
-    for (auto &[symbol, tpl]:_markets) {
-        // Получение среднего арифметического ордербуков по валютной паре
+void core::process_orders() {
+    // проходим по всем рынкам, которые получили из конфига
+    for (auto &[symbol, markets_tuple]:_markets) {
+        // Получаем среднееарифметическое ордербуков по валютной паре (от всех подписанных бирж)
         std::pair<dec_float, dec_float> avg = avg_orderbooks(symbol);
+        // запоминаем лучшие предложения
         dec_float avg_ask = avg.first;
         dec_float avg_bid = avg.second;
-        //std::cout << avg_ask << " " << avg_bid << std::endl;
 
-        // Расчёт стоимости возможных ордеров
+        // Расчитываем стоимость возможных ордеров
         dec_float sell_price    = avg_ask * _SELL_RATIO;
         dec_float buy_price     = avg_bid * _BUY_RATIO;
 
-        dec_float sell_quantity = _balance[std::get<0>(tpl).first];
-        dec_float buy_quantity  = _balance[std::get<0>(tpl).second] / sell_price;
+        // Расчитываем объем возможных ордеров исходя из баланса и стоимости
+        dec_float sell_quantity = _balance[std::get<0>(markets_tuple).first];
+        dec_float buy_quantity  = _balance[std::get<0>(markets_tuple).second] / sell_price;
 //        std::cout << "Объем продажи: " << sell_quantity << ". Объем покупки: " << buy_quantity << std::endl;
 
         dec_float min_ask = avg_ask * _LOWER_BOUND_RATIO;
@@ -861,10 +877,12 @@ void core::process_orders()
         auto&[id_sell_order, has_sell_orders] = _orders_for_sell[symbol];
         auto&[id_buy_order, has_buy_orders]   = _orders_for_buy[symbol];
 
-        // вычислим висячие ордера
-        //for (auto &[client_id, tuple_clients_id]:_clients_id) {
+        // Вычислим висячие ордера (Когда приходит информация о статусе ордера, т.е. он обработан гейтом, то в
+        // callback функции такой ордер удаляется из словаря. Если по какому-то ордеру ничего не было в callback
+        // функции, то удаляем из словаря тут)
         for (auto pos = _clients_id.begin(); pos != _clients_id.end();) {
-            // после 10 секунда посылаем запрос на статус
+            // после 10 секунда посылаем запрос на статус (проверяем , что валютная пара из словаря соответсвует текущей и
+            // флаг того что запрос мы не еще посылали и сразу выставляем поднимаем его)
             if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() > 10 &&
                 std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() < 60 &&
                     symbol == std::get<0>(pos->second) &&
@@ -873,64 +891,63 @@ void core::process_orders()
                 send_get_order_status_by_client_id_request(pos->first);
                 // выставим флаг отправки запроса статуса ордера
                 std::get<3>(pos->second) = true;
-                std::cout << " *************************" << std::endl;
-                std::cout << pos->first << " висит более 10 секунд. Запрашиваем статус. " <<  symbol << " buy " <<std::endl;
-                std::cout << " *************************" << std::endl;
+                //std::cout << " *************************" << std::endl;
+                //std::cout << pos->first << " висит более 10 секунд. Запрашиваем статус. " <<  symbol << " buy " <<std::endl;
+                //std::cout << " *************************" << std::endl;
+                _general_logger->info("{} висит более 10 секунд. Запрашиваем статус. {}.", pos->first, symbol);
                  ++pos;
             }
-            // если время обработки ордера истекло, то получаем сделку, чтобы определить словарь и если это текущая валютная пара
+            // если время обработки ордера истекло и валютная пара из словаря соответсвует текущей,
+            // то обнуляем сделку
             else if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() >= 60 && symbol == std::get<0>(pos->second)) {
                 if (std::get<1>(pos->second) == "sell") {
-                    //
                     has_sell_orders = false;
-                    std::cout << " *************************" << std::endl;
-                    std::cout << pos->first << " висит 60 секунд и будет сброшен " <<  symbol <<" sell " <<std::endl;
-                    std::cout << " *************************" << std::endl;
+                    //std::cout << " *************************" << std::endl;
+                    //std::cout << pos->first << " висит 60 секунд и будет сброшен " <<  symbol <<" sell " <<std::endl;
+                    //std::cout << " *************************" << std::endl;
+                    _general_logger->info("{} висит 60 секунд и будет сброшен . {} sell.", pos->first, symbol);
                 } else if (std::get<1>(pos->second) == "buy") {
                     has_buy_orders = false;
-                    std::cout << " *************************" << std::endl;
-                    std::cout << pos->first << " висит 60 секунд и будет сброшен " <<  symbol << " buy " <<std::endl;
-                    std::cout << " *************************" << std::endl;
+                    //std::cout << " *************************" << std::endl;
+                    //std::cout << pos->first << " висит 60 секунд и будет сброшен " <<  symbol << " buy " <<std::endl;
+                    //std::cout << " *************************" << std::endl;
+                    _general_logger->info("{} висит 60 секунд и будет сброшен . {} buy.", pos->first, symbol);
                 }
-                    /*send_get_order_status_by_client_id_request(pos->first);
-                    std::cout << " *************************" << std::endl;
-                    std::cout << pos->first << " висит 60 секунд. Запрашиваем статус. " <<  symbol << " buy " <<std::endl;
-                    std::cout << " *************************" << std::endl;*/
                 pos = _clients_id.erase(pos);
              } else {
                 ++pos;
             }
         }
 
-        // получаем amount increment для текущего ассета,
-        double threshold = std::get<4>(tpl);
-        // если ордера на продажу нет и баланс продаваемого ассета больше чем amout increment (т.е. можно продать)
-        if (!has_sell_orders && (_balance[std::get<0>(tpl).first] > threshold)) {
+        // получаем минимальный порог ,зависящий от amount increment для текущего ассета,
+        double threshold = std::get<4>(markets_tuple);
+        // если ордера на продажу нет и баланс продаваемого ассета больше чем минимальный порог (т.е. можно продать)
+        if (!has_sell_orders && (_balance[std::get<0>(markets_tuple).first] > threshold)) {
             _general_logger->info("В наличии есть {} {}. Можно продать {} {}. Это больше чем {}.",
-                                  std::get<0>(tpl).first, _balance[std::get<0>(tpl).first], sell_quantity.convert_to<double>(), std::get<0>(tpl).second, threshold);
+                                  std::get<0>(markets_tuple).first, _balance[std::get<0>(markets_tuple).first], sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, threshold);
             //std::cout << "В наличии есть " << _balance[std::get<0>(tpl).first] << " " << std::get<0>(tpl).first << " " << threshold << std::endl;
-            std::string client_id = create_order("sell", symbol, sell_price, sell_quantity, std::get<3>(tpl), std::get<4>(tpl));
+            std::string client_id = create_order("sell", symbol, sell_price, sell_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
             // запоминаем границы
-            std::get<1>(tpl) = std::make_pair(min_ask, max_ask);
+            std::get<1>(markets_tuple) = std::make_pair(min_ask, max_ask);
             has_sell_orders = true;
         }
-        // если ордера на покупку нет и баланс ассета больше 0 (т.е. можно потратить)
-        if (!has_buy_orders && (_balance[std::get<0>(tpl).second] > 0) && (buy_quantity > std::get<4>(tpl))) {
+        // если ордера на покупку нет и баланс ассета больше 0 (т.е. можно потратить) и ??????
+        if (!has_buy_orders && (_balance[std::get<0>(markets_tuple).second] > 0) && (buy_quantity > std::get<4>(markets_tuple))) {
             //std::cout << "В наличии есть " << _balance[std::get<0>(tpl).second] << " "<< std::get<0>(tpl).second << " "<<
             //            buy_quantity << " > " << std::get<4>(tpl) << std::endl;
             _general_logger->info("В наличии есть {} {}. Можно купить {} {}. Это больше чем > {}",
-                                  std::get<0>(tpl).second, _balance[std::get<0>(tpl).second], buy_quantity.convert_to<double>(), std::get<0>(tpl).first, std::get<4>(tpl));
-            std::string client_id = create_order("buy", symbol, buy_price, buy_quantity, std::get<3>(tpl), std::get<4>(tpl));
+                                  std::get<0>(markets_tuple).second, _balance[std::get<0>(markets_tuple).second], buy_quantity.convert_to<double>(), std::get<0>(markets_tuple).first, std::get<4>(markets_tuple));
+            std::string client_id = create_order("buy", symbol, buy_price, buy_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
             // запоминаем границы
-            std::get<2>(tpl) = std::make_pair(min_bid, max_bid);
+            std::get<2>(markets_tuple) = std::make_pair(min_bid, max_bid);
             has_buy_orders = true;
         }
         // Если есть ордер на продажу, но усреднённое лучшее предложение за пределами удержания — отменить ордер
-        if (has_sell_orders && !((std::get<1>(tpl).first < avg_ask) && (avg_ask < std::get<1>(tpl).second))) {
+        if (has_sell_orders && !((std::get<1>(markets_tuple).first < avg_ask) && (avg_ask < std::get<1>(markets_tuple).second))) {
             // если идентификатор не нулевой
             if (id_sell_order != 0) {
                 // отменяем
@@ -940,7 +957,7 @@ void core::process_orders()
         }
 
         // Если есть ордер на покупку, но усреднённое лучшее предложение за пределами удержания — отменить ордер
-        if (has_buy_orders && !((std::get<2>(tpl).first < avg_bid) && (avg_bid < std::get<2>(tpl).second))) {
+        if (has_buy_orders && !((std::get<2>(markets_tuple).first < avg_bid) && (avg_bid < std::get<2>(markets_tuple).second))) {
             // если идентификатор не нулевой
             if (id_buy_order != 0) {
                 // отменяем
@@ -957,17 +974,12 @@ void core::process_orders()
  * @param ticker Тикер
  * @return Пара, содержащая цену покупки и продажи соответственно
  */
-std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker)
-//std::pair<double, double> core::avg_orderbooks(const std::string& ticker)
-{
+std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker) {
 
     // Суммы лучших предложений
     dec_float sum_ask(0);
-    //double sum_ask(0);
     dec_float sum_bid(0);
-    //double sum_bid(0);
-    for (auto const&[exchange, exchange_orderbooks]: _orderbooks)
-    {
+    for (auto const&[exchange, exchange_orderbooks]: _orderbooks) {
         auto find_ticker = exchange_orderbooks.find(ticker);
         // если ордербук содержит такой тикер
         if (find_ticker != exchange_orderbooks.end()) {
@@ -979,13 +991,10 @@ std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker)
 
     // Количество лучших предложений
     dec_float size(_orderbooks.size());
-    //double size(_orderbooks.size());
 
     // Среднее арифметическое лучших предложений
     dec_float avg_ask(sum_ask / size);
-    //double avg_ask(sum_ask / size);
     dec_float avg_bid(sum_bid / size);
-    //double avg_bid(sum_bid / size);
 
     return std::make_pair(avg_ask, avg_bid);
 }
@@ -997,8 +1006,7 @@ std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker)
  * @param price Цена
  * @param quantity Объём
  */
-std::string core::create_order(std::string_view side_, const std::string& symbol_, const dec_float& price_, const dec_float& quantity_, double price_precission_, double amount_precission_)
-{
+std::string core::create_order(std::string_view side_, const std::string& symbol_, const dec_float& price_, const dec_float& quantity_, double price_precission_, double amount_precission_) {
     std::string client_id = create_client_id();
     //std::cout << boost::lexical_cast<std::string>(price_precission_) << "  " << boost::lexical_cast<std::string>(amount_precission_) << std::endl;
     //std::cout << price_ << " " << quantity_<<std::endl;
@@ -1037,7 +1045,8 @@ std::string core::create_order(std::string_view side_, const std::string& symbol
     create_order_root["data"] = data;
 
     // логируем информацию
-    std::cout << ">>>-------->>>--------->>>"<< std::endl;
+    //std::cout << ">>>-------->>>--------->>>"<< std::endl;
+    _general_logger->info(">>>-------->>>--------->>>");
     _orders_logger->info(create_order_root.dump());
     // отправляем команду в гейт
     std::int64_t result = _gateway_channel->offer(create_order_root.dump());
@@ -1115,51 +1124,10 @@ void core::cancel_order(std::string_view side_, std::string symbol_, int64_t id_
        _prev_command_message = fmt::format("Результат: {}. Сообщение: {}", result, cancel_orders.dump());
    }
 }
-
-/**
- * Отменить все ордера
- *
- * @param side Тип ордера
- */
-/*void core::cancel_all_orders(std::string_view side_)
-{
-    // пока сделаем отмену всех ордеров, так как мы не знаем идентификторов ордеров
-     JSON cancel_orders_request;
-     cancel_orders_request["event"]       = "command";
-     cancel_orders_request["exchange"]    = "ftx";
-     cancel_orders_request["node"]        = "core";
-     cancel_orders_request["instance"]    = "2";
-     cancel_orders_request["action"]      = "cancel_all_orders";
-     cancel_orders_request["message"]     = "";
-     cancel_orders_request["algo"]        = "spred_bot";
-     cancel_orders_request["timestamp"]   = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-     cancel_orders_request["data"]        = nullptr;
-
-     // логируем информацию
-    _orders_logger->info(cancel_orders_request.dump());
-
-    std::cout << "" << std::endl;
-    // отправляем команду в гейт
-    std::int64_t result = _gateway_channel->offer(cancel_orders_request.dump());
-    if (result < 0) {
-        processing_error("Ошибка отправки команды отмены ордера в гейт: ", _prev_command_message, result);
-        if (result == -3) {
-            result = _gateway_channel->offer(cancel_orders_request.dump());
-            if (result < 0) {
-                processing_error("Повторная ошибка отправки команды отмены ордера в гейт: ", _prev_command_message, result);
-            }
-        }
-    } else {
-        // запомним предудущее сообщение
-        _prev_command_message = fmt::format("Результат: {}. Сообщение: {}", result, cancel_orders_request.dump());
-    }
-    //metrics_channel->offer(message);
-}*/
 //---------------------------------------------
 // возвращает источник конфига
 //---------------------------------------------
-std::string core::get_config_source()
-{
+std::string core::get_config_source() {
     return _default_config.source;
 }
 //---------------------------------------------------------------
@@ -1172,7 +1140,7 @@ void core::send_error(std::string_view error_) {
 //---------------------------------------------------------------
 // посылает сообщение в лог и в консоль
 //---------------------------------------------------------------
-void core::send_message(std::string_view message_){
+void core::send_message(std::string_view message_) {
     _general_logger->info(message_);
 }
 //---------------------------------------------------------------
