@@ -123,6 +123,7 @@ class core : public std::enable_shared_from_this<core>
     std::string     _prev_command_message = "none";
     // флаг успешного получения конфига
     bool        _config_was_received = false;
+    std::chrono::time_point<std::chrono::system_clock> _snap_time;
 
     /**
      * Функция обратного вызова для обработки баланса

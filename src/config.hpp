@@ -32,6 +32,25 @@ struct core_config
 
     // список ассетов
     std::vector<std::string> _assets;
+    // Пороговые значения для инструментов
+    std::string btc_threshold;
+    std::string usdt_threshold;
+
+    // Коэффициенты для вычисления цены ордеров
+    double      sell_ratio;
+    double      buy_ratio;
+
+    // Коэффициенты для вычисления границ удержания ордеров
+    double      lower_bound_ratio;
+    double      upper_bound_ratio;
+
+    // шаг цены и объема
+    double      price_increment;
+    double      size_increment;
+
+    // время сброса зависшего ордера
+    int         reset_first_time;
+    int         reset_second_time;
 
     struct exchange
     {
@@ -41,21 +60,6 @@ struct core_config
         std::string node;
         std::string algo;
 
-        // Пороговые значения для инструментов
-        std::string btc_threshold;
-        std::string usdt_threshold;
-
-        // Коэффициенты для вычисления цены ордеров
-        std::string sell_ratio;
-        std::string buy_ratio;
-
-        // Коэффициенты для вычисления границ удержания ордеров
-        std::string lower_bound_ratio;
-        std::string upper_bound_ratio;
-
-        // шак цены и объема
-        double      price_increment;
-        double      size_increment;
     } exchange;
 
     struct aeron

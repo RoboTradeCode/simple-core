@@ -17,6 +17,7 @@ core::core(std::string config_file_path_)
     _general_logger->info("Core starting...");
     // Получение дефолтной конфигурации
     _default_config = parse_config(config_file_path_);
+    _snap_time = std::chrono::system_clock::now();
 }
 //---------------------------------------------------------------
 // подготавливает к запуску
@@ -99,16 +100,12 @@ bool core::prepatation_for_launch(bss::error& error_) {
 
 
     // Инициализация коэффициентов для вычисления цены ордеров
-    //SELL_RATIO = dec_float(exchange.sell_ratio);
-    _SELL_RATIO = dec_float(1.0015);
-    //BUY_RATIO  = dec_float(exchange.buy_ratio);
-    _BUY_RATIO  = dec_float(0.9985);
+    _SELL_RATIO = dec_float(_work_config.sell_ratio);
+    _BUY_RATIO  = dec_float(_work_config.buy_ratio);
 
     // Инициализация коэффициентов для вычисления границ удержания ордеров
-    //LOWER_BOUND_RATIO = dec_float(exchange.lower_bound_ratio);
-    _LOWER_BOUND_RATIO = dec_float(0.9995);
-    //UPPER_BOUND_RATIO = dec_float(exchange.upper_bound_ratio);
-    _UPPER_BOUND_RATIO = dec_float(1.0005);
+    _LOWER_BOUND_RATIO = dec_float(_work_config.lower_bound_ratio);
+    _UPPER_BOUND_RATIO = dec_float(_work_config.upper_bound_ratio);
 
     return true;
 }
@@ -200,7 +197,38 @@ bool core::load_config_from_file(bss::error& error_) {
                 }
                 // получим часть пути для сокращения полного пути до элементов
                 if (auto cfg = result["data"]["configs"]["core_config"]; simdjson::SUCCESS == cfg.error()) {
-                    // получаем имя биржи
+                    // коэффициенты и пороговые значения
+                    if (auto sell_ratio_element{cfg["cross_3t_php"]["ratio"]["sell"].get_double()}; simdjson::SUCCESS == sell_ratio_element.error()) {
+                        _work_config.sell_ratio = sell_ratio_element.value();
+                    } else {
+                        _work_config.sell_ratio = 1.0015;
+                    }
+                    if (auto buy_ratio_element{cfg["cross_3t_php"]["ratio"]["buy"].get_double()}; simdjson::SUCCESS == buy_ratio_element.error()) {
+                        _work_config.buy_ratio = buy_ratio_element.value();
+                    } else {
+                        _work_config.buy_ratio = 0.9985;
+                    }
+                    if (auto lower_bound_ratio_element{cfg["cross_3t_php"]["bound_ratio"]["lower"].get_double()}; simdjson::SUCCESS == lower_bound_ratio_element.error()) {
+                        _work_config.lower_bound_ratio = lower_bound_ratio_element.value();
+                    } else {
+                        _work_config.lower_bound_ratio = 0.9995;
+                    }
+                    if (auto upper_bound_ratio_element{cfg["cross_3t_php"]["bound_ratio"]["upper"].get_double()}; simdjson::SUCCESS == upper_bound_ratio_element.error()) {
+                        _work_config.upper_bound_ratio = upper_bound_ratio_element.value();
+                    } else {
+                        _work_config.upper_bound_ratio = 1.0005;
+                    }
+                    // получаем значения сброса для зависших ордеров
+                    if (auto first_reset_element{cfg["cross_3t_php"]["reset_client_id"]["first"].get_int64()}; simdjson::SUCCESS == first_reset_element.error()) {
+                        _work_config.reset_first_time = first_reset_element.value();
+                    } else {
+                        _work_config.reset_first_time = 10;
+                    }
+                    if (auto second_reset_element{cfg["cross_3t_php"]["reset_clietnt_id"]["second"].get_int64()}; simdjson::SUCCESS == second_reset_element.error()) {
+                        _work_config.reset_second_time = second_reset_element.value();
+                    } else {
+                        _work_config.reset_second_time = 30;
+                    }
                     // получаем данные для канала команд в гейт
                     if (auto gate_channel_element{cfg["aeron"]["publishers"]["gate"]["channel"].get_string()}; simdjson::SUCCESS == gate_channel_element.error()) {
                          _work_config.aeron.publishers.gateway.channel = gate_channel_element.value();
@@ -376,15 +404,46 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
 
                 // получим часть пути для сокращения полного пути до элементов
                 if (auto cfg = result["data"]["configs"]["core_config"]; simdjson::SUCCESS == cfg.error()) {
-                    // получаем имя биржи
+                    // коэффициенты и пороговые значения
+                    if (auto sell_ratio_element{cfg["cross_3t_php"]["ratio"]["sell"].get_double()}; simdjson::SUCCESS == sell_ratio_element.error()) {
+                        _work_config.sell_ratio = sell_ratio_element.value();
+                    } else {
+                        _work_config.sell_ratio = 1.0015;
+                    }
+                    if (auto buy_ratio_element{cfg["cross_3t_php"]["ratio"]["buy"].get_double()}; simdjson::SUCCESS == buy_ratio_element.error()) {
+                        _work_config.buy_ratio = buy_ratio_element.value();
+                    } else {
+                        _work_config.buy_ratio = 0.9985;
+                    }
+                    if (auto lower_bound_ratio_element{cfg["cross_3t_php"]["bound_ratio"]["lower"].get_double()}; simdjson::SUCCESS == lower_bound_ratio_element.error()) {
+                        _work_config.lower_bound_ratio = lower_bound_ratio_element.value();
+                    } else {
+                        _work_config.lower_bound_ratio = 0.9995;
+                    }
+                    if (auto upper_bound_ratio_element{cfg["cross_3t_php"]["bound_ratio"]["upper"].get_double()}; simdjson::SUCCESS == upper_bound_ratio_element.error()) {
+                        _work_config.upper_bound_ratio = upper_bound_ratio_element.value();
+                    } else {
+                        _work_config.upper_bound_ratio = 1.0005;
+                    }
+                    // получаем значения сброса для зависших ордеров
+                    if (auto first_reset_element{cfg["cross_3t_php"]["reset_client_id"]["first"].get_int64()}; simdjson::SUCCESS == first_reset_element.error()) {
+                        _work_config.reset_first_time = first_reset_element.value();
+                    } else {
+                        _work_config.reset_first_time = 10;
+                    }
+                    if (auto second_reset_element{cfg["cross_3t_php"]["reset_clietnt_id"]["second"].get_int64()}; simdjson::SUCCESS == second_reset_element.error()) {
+                        _work_config.reset_second_time = second_reset_element.value();
+                    } else {
+                        _work_config.reset_second_time = 30;
+                    }
                     // получаем данные для канала команд в гейт
                     if (auto gate_channel_element{cfg["aeron"]["publishers"]["gate"]["channel"].get_string()}; simdjson::SUCCESS == gate_channel_element.error()) {
                          _work_config.aeron.publishers.gateway.channel = gate_channel_element.value();
                     } else {
                         error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][gate][channel]\".");
                     }
-                    if (auto gate__stream_element{cfg["aeron"]["publishers"]["gate"]["stream_id"].get_int64()}; simdjson::SUCCESS == gate__stream_element.error()) {
-                        _work_config.aeron.publishers.gateway.stream_id = gate__stream_element.value();
+                    if (auto gate_stream_element{cfg["aeron"]["publishers"]["gate"]["stream_id"].get_int64()}; simdjson::SUCCESS == gate_stream_element.error()) {
+                        _work_config.aeron.publishers.gateway.stream_id = gate_stream_element.value();
                     } else {
                         error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][gate][stream_id]\".");
                     }
@@ -477,7 +536,7 @@ void core::send_cancel_all_orders_request() {
     cancel_orders_request["data"]        = nullptr;
 
     // логируем информацию
-   _orders_logger->info(cancel_orders_request.dump());
+   _general_logger->info(cancel_orders_request.dump());
     // отправляем команду
     int64_t result = _gateway_channel->offer(cancel_orders_request.dump());
     if (result < 0) {
@@ -877,14 +936,19 @@ void core::process_orders() {
         auto&[id_sell_order, has_sell_orders] = _orders_for_sell[symbol];
         auto&[id_buy_order, has_buy_orders]   = _orders_for_buy[symbol];
 
+        if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - _snap_time).count() > 60) {
+            _snap_time = std::chrono::system_clock::now();
+            _general_logger->info("symbol = {}, id_sell_order = {}, has_sell_orders = {}", symbol, id_sell_order, has_sell_orders);
+            _general_logger->info("symbol = {}, id_buy_order = {}, has_buy_orders = {}", symbol, id_buy_order, has_buy_orders);
+        }
         // Вычислим висячие ордера (Когда приходит информация о статусе ордера, т.е. он обработан гейтом, то в
         // callback функции такой ордер удаляется из словаря. Если по какому-то ордеру ничего не было в callback
         // функции, то удаляем из словаря тут)
         for (auto pos = _clients_id.begin(); pos != _clients_id.end();) {
-            // после 10 секунда посылаем запрос на статус (проверяем , что валютная пара из словаря соответсвует текущей и
+            // после 10 секунд посылаем запрос на статус (проверяем , что валютная пара из словаря соответсвует текущей и
             // флаг того что запрос мы не еще посылали и сразу выставляем поднимаем его)
-            if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() > 10 &&
-                std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() < 60 &&
+            if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() > _work_config.reset_first_time &&
+                std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() < _work_config.reset_second_time &&
                     symbol == std::get<0>(pos->second) &&
                     false   == std::get<3>(pos->second)) {
 
@@ -894,24 +958,24 @@ void core::process_orders() {
                 //std::cout << " *************************" << std::endl;
                 //std::cout << pos->first << " висит более 10 секунд. Запрашиваем статус. " <<  symbol << " buy " <<std::endl;
                 //std::cout << " *************************" << std::endl;
-                _general_logger->info("{} висит более 10 секунд. Запрашиваем статус. {}.", pos->first, symbol);
+                _general_logger->info("{} висит более {} секунд. Запрашиваем статус. {}.", pos->first, _work_config.reset_first_time, symbol);
                  ++pos;
             }
             // если время обработки ордера истекло и валютная пара из словаря соответсвует текущей,
             // то обнуляем сделку
-            else if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() >= 60 && symbol == std::get<0>(pos->second)) {
+            else if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() >= _work_config.reset_second_time && symbol == std::get<0>(pos->second)) {
                 if (std::get<1>(pos->second) == "sell") {
                     has_sell_orders = false;
                     //std::cout << " *************************" << std::endl;
                     //std::cout << pos->first << " висит 60 секунд и будет сброшен " <<  symbol <<" sell " <<std::endl;
                     //std::cout << " *************************" << std::endl;
-                    _general_logger->info("{} висит 60 секунд и будет сброшен . {} sell.", pos->first, symbol);
+                    _general_logger->info("{} висит {} секунд и будет сброшен (has_sell_orders = false). {} sell.", pos->first, _work_config.reset_second_time,symbol);
                 } else if (std::get<1>(pos->second) == "buy") {
                     has_buy_orders = false;
                     //std::cout << " *************************" << std::endl;
                     //std::cout << pos->first << " висит 60 секунд и будет сброшен " <<  symbol << " buy " <<std::endl;
                     //std::cout << " *************************" << std::endl;
-                    _general_logger->info("{} висит 60 секунд и будет сброшен . {} buy.", pos->first, symbol);
+                    _general_logger->info("{} висит {} секунд и будет сброшен (has_buy_orders = false). {} buy.", pos->first, _work_config.reset_second_time, symbol);
                 }
                 pos = _clients_id.erase(pos);
              } else {
@@ -1047,7 +1111,7 @@ std::string core::create_order(std::string_view side_, const std::string& symbol
     // логируем информацию
     //std::cout << ">>>-------->>>--------->>>"<< std::endl;
     _general_logger->info(">>>-------->>>--------->>>");
-    _orders_logger->info(create_order_root.dump());
+    _general_logger->info(create_order_root.dump());
     // отправляем команду в гейт
     std::int64_t result = _gateway_channel->offer(create_order_root.dump());
     if (result < 0) {
@@ -1107,7 +1171,7 @@ void core::cancel_order(std::string_view side_, std::string symbol_, int64_t id_
     cancel_orders["data"] = data;
     std::cout << ">>>-------->>>--------->>>"<< std::endl;
     // логируем информацию
-   _orders_logger->info(cancel_orders.dump());
+   _general_logger->info(cancel_orders.dump());
     //std::cout << cancel_orders.dump() << std::endl;
    // отправляем команду в гейт
    std::int64_t result = _gateway_channel->offer(cancel_orders.dump());
