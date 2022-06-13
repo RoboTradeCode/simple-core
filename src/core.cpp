@@ -818,12 +818,18 @@ void core::order_status_handler(std::string_view message_) {
                         }  else {}
                         if (side == "sell") {
                             _orders_for_sell[symbol].first = 0;
+                            // если ордер выполнен, то флаг сброса надо опустить здесь
+                            _orders_for_sell[symbol].second = false;
                             //std::cout << "обнулили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
-                            _general_logger->info("обнулили в _orders_for_sell id: {}. Содержит {}", id, _orders_for_sell.size());
+                            _general_logger->info("{} обнулили в _orders_for_sell id: {}. Содержит {}",
+                                                  symbol, id, _orders_for_sell.size());
                         } else if (side == "buy") {
                             _orders_for_buy[symbol].first = 0;
+                            // если ордер выполнен, то флаг сброса надо опустить здесь
+                            _orders_for_buy[symbol].second = false;
                             //std::cout << "обнулили в _orders_for_buy id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
-                            _general_logger->info("обнулили в _orders_for_buy id: {}. Содержит {}", id, _orders_for_buy.size() );
+                            _general_logger->info("{} обнулили в _orders_for_buy id: {}. Содержит {}",
+                                                  symbol, id, _orders_for_buy.size() );
                         }
                         // независимо от side удаляем из словаря по client_id
                         auto find_client_id = _clients_id.find(client_id);
