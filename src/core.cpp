@@ -911,6 +911,18 @@ void core::orderbooks_handler(std::string_view message_) {
  * Проверить условия для создания и отмены ордеров
  */
 void core::process_orders() {
+
+    if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - _snap_time).count() > 60) {
+        _snap_time = std::chrono::system_clock::now();
+        for (auto &[symbol, markets_tuple]:_markets) {
+
+            auto&[id_sell_order, has_sell_orders] = _orders_for_sell[symbol];
+            auto&[id_buy_order, has_buy_orders]   = _orders_for_buy[symbol];
+
+            _general_logger->info("symbol = {}, id_sell_order = {}, has_sell_orders = {}", symbol, id_sell_order, has_sell_orders);
+            _general_logger->info("symbol = {}, id_buy_order = {}, has_buy_orders = {}", symbol, id_buy_order, has_buy_orders);
+        }
+    }
     // проходим по всем рынкам, которые получили из конфига
     for (auto &[symbol, markets_tuple]:_markets) {
         // Получаем среднееарифметическое ордербуков по валютной паре (от всех подписанных бирж)
@@ -936,11 +948,6 @@ void core::process_orders() {
         auto&[id_sell_order, has_sell_orders] = _orders_for_sell[symbol];
         auto&[id_buy_order, has_buy_orders]   = _orders_for_buy[symbol];
 
-        if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - _snap_time).count() > 60) {
-            _snap_time = std::chrono::system_clock::now();
-            _general_logger->info("symbol = {}, id_sell_order = {}, has_sell_orders = {}", symbol, id_sell_order, has_sell_orders);
-            _general_logger->info("symbol = {}, id_buy_order = {}, has_buy_orders = {}", symbol, id_buy_order, has_buy_orders);
-        }
         // Вычислим висячие ордера (Когда приходит информация о статусе ордера, т.е. он обработан гейтом, то в
         // callback функции такой ордер удаляется из словаря. Если по какому-то ордеру ничего не было в callback
         // функции, то удаляем из словаря тут)
