@@ -33,7 +33,7 @@ Boost.Log. Вы можете найти подробные инструкции 
 Затем можете клонировать код репозитория:
 
 ```shell
-git clone --recurse-submodules https://gitlab.com/AlgoTech.ru/trade_core.git
+git clone --recurse-submodules https://github.com/RoboTradeCode/simple-core.git
 ```
 
 > Обратите внимание на параметр `--recurse-submodules`. Он нужен, чтобы рекурсивно установить все зависимости
