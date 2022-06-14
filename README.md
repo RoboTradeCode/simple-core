@@ -46,6 +46,42 @@ build/Debug:
 ```shell
 ./build.sh
 ```
+Исполняемый файл будет находиться в папке build/Release. Для запуска в терминале выполнить ./trade_core, предварительно сконфигурировав
+файл default_config.toml
+
+### Подготовка к запуску
+
+Всю необходимую для работы информацию ядро получает из файла default_config.toml
+
+Пример файла default_config.toml
+
+```toml
+# данные для гейта
+[core]
+exchange_name = 'exchange_name'
+instance_name = '1'
+[configuration]
+# Откуда загружать конфигурацию. Может быть три значения: agent, api, file.
+
+source = 'api'
+
+# эндпойнт для получения конфигурации от конфигуратора.
+api = ["configurator.robotrade.io", "/{exchange_name}/1?only_new=false"]
+
+# настройки работы протокола aeron
+[aeron]
+# настройки каналов откуда будем принимать данные
+[aeron.subscribers]
+# настройки канала куда будет приходить конфигурацию от агента
+# ["channel", channel_id]       
+agent = ["aeron:ipc", 1004]
+# настройки каналов куда будем отправлять данные
+[aeron.publishers]
+# канал куда отправляем логи
+logs = ["aeron:ipc", 2002]
+# канал агента куда гейт при запуске отправит запрос на получение конфига
+agent = ["aeron:ipc", 1002]
+```
 
 ### Конфигурация ядра
 
