@@ -86,13 +86,25 @@ class core : public std::enable_shared_from_this<core>
     std::map<std::string, std::pair<int64_t, bool>> _orders_for_buy;
 
     // словарь идентификаторов ордеров
-    std::map<std::string,               // идентификатор ордера
+    std::map<std::string,               // клиентский идентификатор ордера
             std::tuple<
                 std::string,            // валютная пара
                 std::string,            // сделка (sell, buy)
                 std::chrono::time_point<std::chrono::system_clock>,// время создания ордера
                 bool                    // флаг отправки запроса статуса ордера
     >> _clients_id;
+
+    // словарь для контроля отмены ордеров (на случай, если мы не получим ответ от гейта)
+    std::map<int64_t,              // идентификатор ордера на отмену
+            std::tuple<
+                std::string,            // валютная пара
+                std::string,            // сделка (sell, buy)
+                std::chrono::time_point<std::chrono::system_clock>,// время создания ордера
+                bool                    // флаг отправки запроса статуса ордера
+    >> _cancel_id;
+
+    // минимиальные сделки
+    std::map<std::string, double> _min_deal_amounts;
 
     // флаг наличия балансов
     bool _has_balance = false;

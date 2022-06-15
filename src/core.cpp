@@ -216,7 +216,19 @@ bool core::load_config_from_file(bss::error& error_) {
                 }
                 // получим часть пути для сокращения полного пути до элементов
                 if (auto cfg = result["data"]["configs"]["core_config"]; simdjson::SUCCESS == cfg.error()) {
-                    // коэффициенты и пороговые значения
+                    // минимальные пороговые значения
+                    if (auto min_deal_amounts_objects{cfg["cross_3t_php"]["min_deal_amounts"].get_object()}; simdjson::SUCCESS == min_deal_amounts_objects.error()) {
+                        std::string_view asset_value;
+                        double min_deal;
+                        for (auto asset : min_deal_amounts_objects) {
+                            std::cout << asset.key << " " << asset.value << std::endl;
+                            asset_value = asset.key;
+                            //min_deal = asset.value.get_double();
+                            _min_deal_amounts[std::string(asset_value)] = asset.value.get_double();
+                        }
+
+                    }
+                    // коэффициенты
                     if (auto sell_ratio_element{cfg["cross_3t_php"]["ratio"]["sell"].get_double()}; simdjson::SUCCESS == sell_ratio_element.error()) {
                         _work_config.sell_ratio = sell_ratio_element.value();
                     } else {
@@ -436,7 +448,18 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
 
                 // получим часть пути для сокращения полного пути до элементов
                 if (auto cfg = result["data"]["configs"]["core_config"]; simdjson::SUCCESS == cfg.error()) {
-                    // коэффициенты и пороговые значения
+                    // минимальные пороговые значения
+                    if (auto min_deal_amounts_objects{cfg["cross_3t_php"]["min_deal_amounts"].get_object()}; simdjson::SUCCESS == min_deal_amounts_objects.error()) {
+                        std::string_view asset_value;
+                        double min_deal;
+                        for (auto asset : min_deal_amounts_objects) {
+                            std::cout << asset.key << " " << asset.value << std::endl;
+                            asset_value = asset.key;
+                            //min_deal = asset.value.get_double();
+                            _min_deal_amounts[std::string(asset_value)] = asset.value.get_double();
+                        }
+                    }
+                    // коэффициенты
                     if (auto sell_ratio_element{cfg["cross_3t_php"]["ratio"]["sell"].get_double()}; simdjson::SUCCESS == sell_ratio_element.error()) {
                         _work_config.sell_ratio = sell_ratio_element.value();
                     } else {
@@ -898,11 +921,16 @@ void core::order_status_handler(std::string_view message_) {
                             }*/
                         }
                         // независимо от side удаляем из словаря по client_id
-                        auto find_client_id = _clients_id.find(client_id);
+                        /*auto find_client_id = _clients_id.find(client_id);
                         if (find_client_id != _clients_id.end()) {
                             _clients_id.erase(find_client_id);
                             //std::cout << "удалили из _clients_id: " << client_id << std::endl;
                             _general_logger->info("удалили из _clients_id: {}", client_id);
+                        }*/
+                        auto find_id = _cancel_id.find(id);
+                        if (find_id != _cancel_id.end()) {
+                            _cancel_id.erase(find_id);
+                            _general_logger->info("удалили из _cancel_id: {}", client_id);
                         }
                     } else {
                         _errors_logger->error("(order_status_handler) Поле \"action\" содержит значение: {}", action_element.value());
@@ -1037,9 +1065,6 @@ void core::process_orders() {
                 send_get_order_status_by_client_id_request(pos->first);
                 // выставим флаг отправки запроса статуса ордера
                 std::get<3>(pos->second) = true;
-                //std::cout << " *************************" << std::endl;
-                //std::cout << pos->first << " висит более 10 секунд. Запрашиваем статус. " <<  symbol << " buy " <<std::endl;
-                //std::cout << " *************************" << std::endl;
                 _general_logger->info("{} висит более {} секунд. Запрашиваем статус. {}.", pos->first, _work_config.reset_first_time, symbol);
                  ++pos;
             }
@@ -1048,15 +1073,9 @@ void core::process_orders() {
             else if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() >= _work_config.reset_second_time && symbol == std::get<0>(pos->second)) {
                 if (std::get<1>(pos->second) == "sell") {
                     has_sell_orders = false;
-                    //std::cout << " *************************" << std::endl;
-                    //std::cout << pos->first << " висит 60 секунд и будет сброшен " <<  symbol <<" sell " <<std::endl;
-                    //std::cout << " *************************" << std::endl;
                     _general_logger->info("{} висит {} секунд и будет сброшен (has_sell_orders = false). {} sell.", pos->first, _work_config.reset_second_time,symbol);
                 } else if (std::get<1>(pos->second) == "buy") {
                     has_buy_orders = false;
-                    //std::cout << " *************************" << std::endl;
-                    //std::cout << pos->first << " висит 60 секунд и будет сброшен " <<  symbol << " buy " <<std::endl;
-                    //std::cout << " *************************" << std::endl;
                     _general_logger->info("{} висит {} секунд и будет сброшен (has_buy_orders = false). {} buy.", pos->first, _work_config.reset_second_time, symbol);
                 }
                 pos = _clients_id.erase(pos);
@@ -1064,14 +1083,45 @@ void core::process_orders() {
                 ++pos;
             }
         }
+        // проверяем зависшие ордера на отмену
+        for (auto pos = _cancel_id.begin(); pos != _cancel_id.end();) {
+            // после 10 секунд посылаем запрос на статус (проверяем , что валютная пара из словаря соответсвует текущей и
+            // флаг того что запрос мы не еще посылали и сразу выставляем поднимаем его)
+            if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() > _work_config.reset_first_time &&
+                std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() < _work_config.reset_second_time &&
+                    symbol == std::get<0>(pos->second) &&
+                    false   == std::get<3>(pos->second)) {
+
+                send_get_order_status_request(std::to_string(pos->first));
+                // выставим флаг отправки запроса статуса ордера
+                std::get<3>(pos->second) = true;
+                _general_logger->info("{} ордер на отмену висит более {} секунд. Запрашиваем статус. {}.", pos->first, _work_config.reset_first_time, symbol);
+                 ++pos;
+            }
+            // если время обработки ордера истекло и валютная пара из словаря соответсвует текущей,
+            // то обнуляем сделку
+            else if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() >= _work_config.reset_second_time && symbol == std::get<0>(pos->second)) {
+                if (std::get<1>(pos->second) == "sell") {
+                    has_sell_orders = false;
+                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_sell_orders = false). {} sell.", pos->first, _work_config.reset_second_time,symbol);
+                } else if (std::get<1>(pos->second) == "buy") {
+                    has_buy_orders = false;
+                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_buy_orders = false). {} buy.", pos->first, _work_config.reset_second_time, symbol);
+                }
+                pos = _cancel_id.erase(pos);
+             } else {
+                ++pos;
+            }
+        }
 
         // получаем минимальный порог ,зависящий от amount increment для текущего ассета,
-        double threshold = std::get<4>(markets_tuple);
+        //double threshold = std::get<4>(markets_tuple);
+        double threshold = _min_deal_amounts[std::get<0>(markets_tuple).first];
         // если ордера на продажу нет и баланс продаваемого ассета больше чем минимальный порог (т.е. можно продать)
         if (!has_sell_orders && (_balance[std::get<0>(markets_tuple).first] > threshold)) {
             _general_logger->info("В наличии есть {} {}. Можно продать {} {}. Это больше чем {}.",
-                                  std::get<0>(markets_tuple).first, _balance[std::get<0>(markets_tuple).first], sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, threshold);
-            //std::cout << "В наличии есть " << _balance[std::get<0>(tpl).first] << " " << std::get<0>(tpl).first << " " << threshold << std::endl;
+                                  std::get<0>(markets_tuple).first, _balance[std::get<0>(markets_tuple).first],
+                                  sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, threshold);
             std::string client_id = create_order("sell", symbol, sell_price, sell_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
@@ -1079,12 +1129,12 @@ void core::process_orders() {
             std::get<1>(markets_tuple) = std::make_pair(min_ask, max_ask);
             has_sell_orders = true;
         }
+        double threshold_quote = _min_deal_amounts[std::get<0>(markets_tuple).second];
         // если ордера на покупку нет и баланс ассета больше 0 (т.е. можно потратить) и ??????
-        if (!has_buy_orders && (_balance[std::get<0>(markets_tuple).second] > 0) && (buy_quantity > std::get<4>(markets_tuple))) {
-            //std::cout << "В наличии есть " << _balance[std::get<0>(tpl).second] << " "<< std::get<0>(tpl).second << " "<<
-            //            buy_quantity << " > " << std::get<4>(tpl) << std::endl;
+        if (!has_buy_orders && (_balance[std::get<0>(markets_tuple).second] > /*0*/threshold_quote) && (buy_quantity > std::get<4>(markets_tuple))) {
             _general_logger->info("В наличии есть {} {}. Можно купить {} {}. Это больше чем > {}",
-                                  std::get<0>(markets_tuple).second, _balance[std::get<0>(markets_tuple).second], buy_quantity.convert_to<double>(), std::get<0>(markets_tuple).first, std::get<4>(markets_tuple));
+                                  std::get<0>(markets_tuple).second, _balance[std::get<0>(markets_tuple).second],
+                                  buy_quantity.convert_to<double>(), std::get<0>(markets_tuple).first, /*std::get<4>(markets_tuple)*/threshold_quote);
             std::string client_id = create_order("buy", symbol, buy_price, buy_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
@@ -1099,6 +1149,8 @@ void core::process_orders() {
                 // отменяем
                 cancel_order("sell", symbol, id_sell_order);
                 //has_sell_orders = false;
+                // запомним идентификатор ордера на отмену
+                _cancel_id[id_sell_order] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
                 id_sell_order = 0;
             }
         }
@@ -1110,6 +1162,9 @@ void core::process_orders() {
                 // отменяем
                 cancel_order("buy", symbol, id_buy_order);
                 //has_buy_orders = false;
+                // запомним идентификатор ордера на отмену
+                _cancel_id[id_buy_order] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
+
                 id_buy_order = 0;
             }
         }
