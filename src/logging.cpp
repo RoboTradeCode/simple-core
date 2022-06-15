@@ -10,9 +10,9 @@ void init_logging()
     int max_files = 5;
 
     // Логирование биржевых стаканов
-    auto orderbooks = spdlog::rotating_logger_mt<spdlog::async_factory>(
-        "orderbooks",
-        "logs/orderbooks.log",
+    auto logs = spdlog::rotating_logger_mt<spdlog::async_factory>(
+        "logs",
+        "logs/logs.log",
         max_size,
         max_files
     );

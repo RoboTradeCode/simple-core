@@ -8,16 +8,25 @@
  */
 core::core(std::string config_file_path_)
     : idle_strategy(std::chrono::milliseconds(DEFAULT_IDLE_STRATEGY_SLEEP_MS)),
-      orderbooks_logger(spdlog::get("orderbooks")),
+      _logs_logger(spdlog::get("logs")),
       _balances_logger(spdlog::get("balances")),
       _orders_logger(spdlog::get("orders")),
       _errors_logger(spdlog::get("errors")),
       _general_logger(spdlog::get("general")) {
 
+//    _orders_for_sell["UGD/TRE"] = std::make_pair(0, false);
+//    if (_orders_for_sell["UGD/TRE"].second == false )
+//    {
+//        auto&[id_sell_order, has_sell_orders] = _orders_for_sell["UGD/TRE"];
+//                has_sell_orders = true;
+//        std::cout << "hz" << std::endl;
+//    }
+
     _general_logger->info("Core starting...");
     // Получение дефолтной конфигурации
     _default_config = parse_config(config_file_path_);
-    _snap_time = std::chrono::system_clock::now();
+    _snap_time  = std::chrono::system_clock::now();
+    _delay_time = std::chrono::system_clock::now();
 }
 //---------------------------------------------------------------
 // подготавливает к запуску
@@ -29,6 +38,7 @@ bool core::prepatation_for_launch(bss::error& error_) {
     auto subscribers    = aeron.subscribers;
     auto publishers     = aeron.publishers;
     auto gateway        = publishers.gateway;
+    auto log            = publishers.logs;
     //auto metrics        = publishers.metrics;
     //auto errors         = publishers.errors;
 
@@ -74,6 +84,13 @@ bool core::prepatation_for_launch(bss::error& error_) {
         _gateway_channel = std::make_shared<Publisher>(gateway.channel, gateway.stream_id);
     } catch (const std::exception& err) {
         error_.describe(fmt::format("Канал для отправки команд не создан: {}", err.what()));
+        _general_logger->error(error_.to_string());
+        return false;
+    }
+    try {
+        _log_channel = std::make_shared<Publisher>(log.channel, log.stream_id);
+    } catch (const std::exception& err) {
+        error_.describe(fmt::format("Канал для отправки информации на лог сервер не создан: {}", err.what()));
         _general_logger->error(error_.to_string());
         return false;
     }
@@ -171,7 +188,9 @@ bool core::load_config_from_file(bss::error& error_) {
                         if (auto amount_increment_element{market["amount_increment"].get_double()}; simdjson::SUCCESS == amount_increment_element.error()) {
                             amount_increment = amount_increment_element.value();
                         }
+                        // создаем словарь ордеров на продажу для текущего рынка
                         _orders_for_sell[common_symbol] = std::make_pair(0, false);
+                        // создаем словарь ордеров на покупку для текущего рынка
                         _orders_for_buy[common_symbol] = std::make_pair(0, false);
                         _markets[common_symbol] = std::make_tuple(std::make_pair(base_asset, quote_asset),
                                                                   std::make_pair(dec_float(0), dec_float(0)),
@@ -239,6 +258,17 @@ bool core::load_config_from_file(bss::error& error_) {
                         _work_config.aeron.publishers.gateway.stream_id = gate_stream_element.value();
                     } else {
                         error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][gate][stream_id]\".");
+                    }
+                    // получаем данные для канала логов
+                    if (auto logs_channel_element{cfg["aeron"]["publishers"]["logs"]["channel"].get_string()}; simdjson::SUCCESS == logs_channel_element.error()) {
+                        _work_config.aeron.publishers.logs.channel = logs_channel_element.value();
+                    } else {
+                        error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][logs][channel]\".");
+                    }
+                    if (auto logs_stream_element{cfg["aeron"]["publishers"]["logs"]["stream_id"].get_int64()}; simdjson::SUCCESS == logs_stream_element.error()) {
+                        _work_config.aeron.publishers.logs.stream_id = logs_stream_element.value();
+                    } else {
+                        error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][logs][stream_id]\".");
                     }
                     // получаем данные для канала ордербуков
                     if (auto orderbook_channel_element{cfg["aeron"]["subscribers"]["orderbooks"]["channel"].get_string()}; simdjson::SUCCESS == orderbook_channel_element.error()) {
@@ -377,7 +407,9 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
                         if (auto amount_increment_element{market["amount_increment"].get_double()}; simdjson::SUCCESS == amount_increment_element.error()) {
                             amount_increment = amount_increment_element.value();
                         }
+                        // создаем словарь ордеров на продажу для текущего рынка
                         _orders_for_sell[common_symbol] = std::make_pair(0, false);
+                        // создаем словарь ордеров на покурку для текущего рынка
                         _orders_for_buy[common_symbol] = std::make_pair(0, false);
                         _markets[common_symbol] = std::make_tuple(std::make_pair(base_asset, quote_asset),
                                                                   std::make_pair(dec_float(0), dec_float(0)),
@@ -446,6 +478,17 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
                         _work_config.aeron.publishers.gateway.stream_id = gate_stream_element.value();
                     } else {
                         error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][gate][stream_id]\".");
+                    }
+                    // получаем данные для канала логов
+                    if (auto logs_channel_element{cfg["aeron"]["publishers"]["logs"]["channel"].get_string()}; simdjson::SUCCESS == logs_channel_element.error()) {
+                        _work_config.aeron.publishers.logs.channel = logs_channel_element.value();
+                    } else {
+                        error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][logs][channel]\".");
+                    }
+                    if (auto logs_stream_element{cfg["aeron"]["publishers"]["logs"]["stream_id"].get_int64()}; simdjson::SUCCESS == logs_stream_element.error()) {
+                        _work_config.aeron.publishers.logs.stream_id = logs_stream_element.value();
+                    } else {
+                        error_.describe("При загрузке конфигурации из файла в теле json не найден объект \"[aeron][publishers][logs][stream_id]\".");
                     }
                     // получаем данные для канала ордербуков
                     if (auto orderbook_channel_element{cfg["aeron"]["subscribers"]["orderbooks"]["channel"].get_string()}; simdjson::SUCCESS == orderbook_channel_element.error()) {
@@ -787,13 +830,17 @@ void core::order_status_handler(std::string_view message_) {
                             client_id = client_id_element.value();
                         }  else {}
                         if (side == "sell") {
+                            if (_orders_for_sell[symbol].second == false) {
+                                _general_logger->error("По какой-то причине флаг наличия ордера на продажу установлен в false");
+                            } else {}
                             _orders_for_sell[symbol].first = id;
-                //            std::cout << "добавили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
-                            _general_logger->info("добавили в _sell_orders id: {}. Содержит {} элементов.", id, _orders_for_sell.size());
+                            _general_logger->info("запомнили в _sell_orders id: {}. Содержит {} элементов.", id, _orders_for_sell.size());
                         } else if (side == "buy") {
+                            if (_orders_for_buy[symbol].second == false) {
+                                _general_logger->error("По какой-то причине флаг наличия ордера на покупку установлен в false");
+                            } else {}
                             _orders_for_buy[symbol].first = id;
-                            //std::cout << "добавили в _buy_orders id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
-                            _general_logger->info("добавили в _buy_orders id: {}. Содержит {} элементов.", id, _orders_for_buy.size());
+                            _general_logger->info("запомнили в _buy_orders id: {}. Содержит {} элементов.", id, _orders_for_buy.size());
                         }
                         // независимо от side удаляем из словаря по client_id
                         auto find_client_id = _clients_id.find(client_id);
@@ -816,20 +863,39 @@ void core::order_status_handler(std::string_view message_) {
                         if (auto client_id_element{parse_result["data"]["client_id"].get_string()}; simdjson::SUCCESS == client_id_element.error()) {
                             client_id = client_id_element.value();
                         }  else {}
+                        // найдем в словаре клиентский идентификатор
+                        //auto find_client_id = _clients_id.find(client_id);
                         if (side == "sell") {
-                            _orders_for_sell[symbol].first = 0;
-                            // если ордер выполнен, то флаг сброса надо опустить здесь
-                            _orders_for_sell[symbol].second = false;
-                            //std::cout << "обнулили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
-                            _general_logger->info("{} обнулили в _orders_for_sell id: {}. Содержит {}",
-                                                  symbol, id, _orders_for_sell.size());
+                            // если такой клиентский идентификатор найден (его может не быть, если cancel_order приходит
+                            // после перезапуска и команды cancel_all_orders, а во время перезапуска были открытые ордера)
+                            //if (find_client_id != _clients_id.end()) {
+                                // сбрасываем идентфикатор ордера
+                                _orders_for_sell[symbol].first = 0;
+                                // если ордер выполнен, то флаг сброса надо опустить здесь
+                                _orders_for_sell[symbol].second = false;
+                                //std::cout << "обнулили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
+                                _general_logger->info("{} обнулили в _orders_for_sell id: {}. Содержит {}",
+                                                      symbol, id, _orders_for_sell.size());
+                            /*} else {
+                                _general_logger->info("В json client_id = {}. В словаре такого не нашлось.", client_id);
+                            }*/
+
+
                         } else if (side == "buy") {
-                            _orders_for_buy[symbol].first = 0;
-                            // если ордер выполнен, то флаг сброса надо опустить здесь
-                            _orders_for_buy[symbol].second = false;
-                            //std::cout << "обнулили в _orders_for_buy id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
-                            _general_logger->info("{} обнулили в _orders_for_buy id: {}. Содержит {}",
-                                                  symbol, id, _orders_for_buy.size() );
+                            // если такой клиентский идентификатор найден (его может не быть, если cancel_order приходит
+                            // после перезапуска и команды cancel_all_orders, а во время перезапуска были открытые ордера)
+                            //if (find_client_id != _clients_id.end()) {
+                                // сбрасываем идентфикатор ордера
+                                _orders_for_buy[symbol].first = 0;
+                                // если ордер выполнен, то флаг сброса надо опустить здесь
+                                _orders_for_buy[symbol].second = false;
+                                //std::cout << "обнулили в _orders_for_buy id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
+                                _general_logger->info("{} обнулили в _orders_for_buy id: {}. Содержит {}",
+                                                      symbol, id, _orders_for_buy.size() );
+                            /*}
+                            else {
+                                _general_logger->info("В json client_id = {}. В словаре такого не нашлось.", client_id);
+                            }*/
                         }
                         // независимо от side удаляем из словаря по client_id
                         auto find_client_id = _clients_id.find(client_id);
@@ -861,7 +927,6 @@ void core::orderbooks_handler(std::string_view message_) {
     //std::cout << "--------------------------------------" << std::endl;
     //std::cout << "orderbooks_handler " << message_ << std::endl;
     //std::cout << "--------------------------------------" << std::endl;
-    //orderbooks_logger->info(message_);
 
     // Создадим парсер.
     simdjson::ondemand::parser parser;
@@ -918,6 +983,10 @@ void core::orderbooks_handler(std::string_view message_) {
  */
 void core::process_orders() {
 
+    if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - _delay_time).count() < 10) {
+        // даем 10 секунд на отмену ранее выставленных ордеров
+        return;
+    }
     if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - _snap_time).count() > 60) {
         _snap_time = std::chrono::system_clock::now();
         for (auto &[symbol, markets_tuple]:_markets) {
@@ -1029,7 +1098,8 @@ void core::process_orders() {
             if (id_sell_order != 0) {
                 // отменяем
                 cancel_order("sell", symbol, id_sell_order);
-                has_sell_orders = false;
+                //has_sell_orders = false;
+                id_sell_order = 0;
             }
         }
 
@@ -1039,7 +1109,8 @@ void core::process_orders() {
             if (id_buy_order != 0) {
                 // отменяем
                 cancel_order("buy", symbol, id_buy_order);
-                has_buy_orders = false;
+                //has_buy_orders = false;
+                id_buy_order = 0;
             }
         }
     }
@@ -1084,13 +1155,9 @@ std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker) 
  * @param quantity Объём
  */
 std::string core::create_order(std::string_view side_, const std::string& symbol_, const dec_float& price_, const dec_float& quantity_, double price_precission_, double amount_precission_) {
+    // создаем уникальный клиентский идентификатор
     std::string client_id = create_client_id();
-    //std::cout << boost::lexical_cast<std::string>(price_precission_) << "  " << boost::lexical_cast<std::string>(amount_precission_) << std::endl;
-    //std::cout << price_ << " " << quantity_<<std::endl;
-    //std::cout << price_precission_ << " " << amount_precission_<<std::endl;
-    //double price = (double)(((int)((price_) / price_precission_))*price_precission_);
     double price = utils::digit_trim(price_.convert_to<double>(), utils::get_exponent(price_precission_));
-    //double amount = (double)(((int)((quantity_) / amount_precission_))*amount_precission_);
     double amount = utils::digit_trim(quantity_.convert_to<double>(), utils::get_exponent(amount_precission_));
 
     JSON create_order_root;
@@ -1108,13 +1175,7 @@ std::string core::create_order(std::string_view side_, const std::string& symbol
         order["symbol"]  = symbol_;
         order["type"]    = "limit";
         order["side"]    = side_;
-        //order["price"]   = (side_.compare("sell") == 0) ? ceil(price_.convert_to<double>()) : floor(price_.convert_to<double>());
-        //order["price"]   = utils::set_number_with_precission(price_precission_, price_.convert_to<std::string>());
-        //order["price"]    = boost::lexical_cast<std::string>(price_.convert_to<double>());
         order["price"]  = price;
-        //order["amount"]  = utils::set_number_with_precission(_size_precision, quantity_.convert_to<std::string>());
-        //order["amount"]  = utils::set_number_with_precission(amount_precission_, quantity_.convert_to<std::string>());
-        //order["amount"]  = boost::lexical_cast<std::string>(quantity_.convert_to<double>());
         order["amount"] = amount;
         order["client_id"] = client_id;
         data.push_back(order);
@@ -1122,7 +1183,6 @@ std::string core::create_order(std::string_view side_, const std::string& symbol
     create_order_root["data"] = data;
 
     // логируем информацию
-    //std::cout << ">>>-------->>>--------->>>"<< std::endl;
     _general_logger->info(">>>-------->>>--------->>>");
     _general_logger->info(create_order_root.dump());
     // отправляем команду в гейт
@@ -1139,7 +1199,24 @@ std::string core::create_order(std::string_view side_, const std::string& symbol
         // запомним предудущее сообщение
         _prev_command_message = fmt::format("Результат: {}. Сообщение: {}", result, create_order_root.dump());
     }
-    //metrics_channel->offer(message);
+    // теперь отправим все это дело в лог
+    result = _log_channel->offer(create_order_root.dump());
+    if (result < 0) {
+        // чтобы не переполнять лог файл ошибок не будем в первый раз логировать ошибку с кодом -3
+        if (result != -3)
+            processing_error("Ошибка отправки команды create_order в лог: ", _prev_create_order_log_message, result);
+        if (result == -3) {
+            // пробуем отправить еще раз
+            result = _log_channel->offer(create_order_root.dump());
+            if (result < 0) {
+                processing_error("Повторная ошибка отправки информации о статусе ордера в лог: ", _prev_create_order_log_message, result);
+            }
+        }
+    } else {
+        // продублируем информацию в файл лога
+        _logs_logger->info(create_order_root.dump());
+        _prev_create_order_log_message = fmt::format("Результат: {}. Сообщение: {}", result, create_order_root.dump());
+    }
     return client_id;
 }
 /**
@@ -1165,27 +1242,11 @@ void core::cancel_order(std::string_view side_, std::string symbol_, int64_t id_
     order["id"]     = std::to_string(id_);
     order["symbol"] = symbol_;
     data.push_back(order);
-    /*if (side_ == "sell") {
-        for (auto&& sell_order : _sell_orders)
-            JSON order;
-            order["id"]     = sell_order.first;
-            order["symbol"] = sell_order.second;
-            data.push_back(order);
-        }
-    } else if (side_ == "buy") {
-        for (auto&& buy_order : _buy_orders) {
-            JSON order;
-            order["id"]     = buy_order.first;
-            order["symbol"] = buy_order.second;
-            data.push_back(order);
-        }
-    }*/
 
     cancel_orders["data"] = data;
     std::cout << ">>>-------->>>--------->>>"<< std::endl;
     // логируем информацию
    _general_logger->info(cancel_orders.dump());
-    //std::cout << cancel_orders.dump() << std::endl;
    // отправляем команду в гейт
    std::int64_t result = _gateway_channel->offer(cancel_orders.dump());
    if (result < 0) {
@@ -1200,6 +1261,25 @@ void core::cancel_order(std::string_view side_, std::string symbol_, int64_t id_
        // запомним предудущее сообщение
        _prev_command_message = fmt::format("Результат: {}. Сообщение: {}", result, cancel_orders.dump());
    }
+   // теперь отправим все это дело в лог
+   result = _log_channel->offer(cancel_orders.dump());
+   if (result < 0) {
+       // чтобы не переполнять лог файл ошибок не будем в первый раз логировать ошибку с кодом -3
+       if (result != -3)
+           processing_error("Ошибка отправки команды create_order в лог: ", _prev_cancel_order_log_message, result);
+       if (result == -3) {
+           // пробуем отправить еще раз
+           result = _log_channel->offer(cancel_orders.dump());
+           if (result < 0) {
+               processing_error("Повторная ошибка отправки информации о статусе ордера в лог: ", _prev_cancel_order_log_message, result);
+           }
+       }
+   } else {
+       // продублируем информацию в файл лога
+       _logs_logger->info(cancel_orders.dump());
+       _prev_cancel_order_log_message = fmt::format("Результат: {}. Сообщение: {}", result, cancel_orders.dump());
+   }
+
 }
 //---------------------------------------------
 // возвращает источник конфига

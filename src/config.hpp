@@ -24,8 +24,7 @@ extern const int DEFAULT_IDLE_STRATEGY_SLEEP_MS;
 extern const int DEFAULT_BUFFER_SIZE;
 
 // Конфигурация ядра
-struct core_config
-{
+struct core_config {
     std::string source;
     std::string config_uri;
     std::string config_target;
@@ -52,8 +51,7 @@ struct core_config
     int         reset_first_time;
     int         reset_second_time;
 
-    struct exchange
-    {
+    struct exchange {
         // имя биржы
         std::string name;
         std::string instance;
@@ -62,46 +60,45 @@ struct core_config
 
     } exchange;
 
-    struct aeron
-    {
-        struct subscribers
-        {
+    struct aeron {
+        struct subscribers {
             // Продолжительность для стратегии ожидания Aeron в мс
             int idle_strategy_sleep_ms{};
 
             // Subscriber для приёма биржевого стакана
-            struct orderbooks
-            {
+            struct orderbooks {
                 std::string channel;
                 int stream_id;
                 std::vector<std::string> destinations;
             } orderbooks;
 
             // Subscriber для приёма баланса
-            struct balances
-            {
+            struct balances {
                 std::string channel;
                 int stream_id;
                 std::vector<std::string> destinations;
             } balances;
 
             // Subscriber для приема статуса ордеров
-            struct order_statuses
-            {
+            struct order_statuses {
                 std::string channel;
                 int stream_id;
             } order_statuses;
         } subscribers;
 
-        struct publishers
-        {
+        struct publishers {
             // Publisher для отправки ордеров
-            struct gateway
-            {
+            struct gateway {
                 std::string channel;
                 int stream_id;
                 int buffer_size;
             } gateway;
+
+            struct logs {
+                std::string channel;
+                int stream_id;
+                int buffer_size;
+            } logs;
 
             // Publisher для отправки метрик
             /*struct metrics

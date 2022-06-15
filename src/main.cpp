@@ -1,6 +1,6 @@
 #include <atomic>
 #include <memory>
-#include <sentry.h>
+//#include <sentry.h>
 #include "core.hpp"
 #include "logging.hpp"
 
@@ -72,7 +72,7 @@ int main()
     while (running)
         trade_core->poll();
 
-    sentry_close();
+    //sentry_close();
     return EXIT_SUCCESS;
 }
 

@@ -17,8 +17,8 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/aeron_cpp EXCLUDE_FROM_ALL)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/aeron_cpp/src)
 
 # Sentry
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/sentry-native EXCLUDE_FROM_ALL)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/sentry-native/include)
+#add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/sentry-native EXCLUDE_FROM_ALL)
+#include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/sentry-native/include)
 
 # Simdjson
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/simdjson EXCLUDE_FROM_ALL)
@@ -56,7 +56,7 @@ target_link_libraries(trade_core
     OpenSSL::SSL
     aeron_cpp::aeron_cpp
     aeron_client
-    sentry::sentry
+   # sentry::sentry
     simdjson::simdjson
     spdlog::spdlog
     tomlplusplus::tomlplusplus)

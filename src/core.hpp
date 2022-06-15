@@ -8,7 +8,7 @@
 #include <boost/uuid/uuid.hpp>            // uuid class
 #include <boost/uuid/uuid_generators.hpp> // generators
 #include <boost/uuid/uuid_io.hpp>         // streaming operators etc.
-#include <sentry.h>
+//#include <sentry.h>
 #include "json.hpp"
 #include <Subscriber.h>
 #include <Publisher.h>
@@ -39,6 +39,8 @@ class core : public std::enable_shared_from_this<core>
     std::shared_ptr<Subscriber> _balance_channel;
     std::shared_ptr<Subscriber> _order_status_channel;
     std::shared_ptr<Publisher>  _gateway_channel;
+    std::shared_ptr<Publisher>  _log_channel;
+
     //std::shared_ptr<Publisher> metrics_channel;     // TODO: Отправлять метрики
     //std::shared_ptr<Publisher> errors_channel;
 
@@ -62,11 +64,6 @@ class core : public std::enable_shared_from_this<core>
     dec_float                   _LOWER_BOUND_RATIO;
     dec_float                   _UPPER_BOUND_RATIO;
 
-    // разрядность цены
-    //uint16_t  _price_precission;
-    // разрядность объема
-    //uint16_t  _size_precision;
-
     // Последние данные о балансе
     //std::map<std::string, dec_float> _balance;
     std::map<std::string, double> _balance;
@@ -85,9 +82,6 @@ class core : public std::enable_shared_from_this<core>
                   double                                // amount_increment
     >> _markets;
 
-    //std::map<std::string, std::pair<int, int>> _precission;
-
-
     std::map<std::string, std::pair<int64_t, bool>> _orders_for_sell;
     std::map<std::string, std::pair<int64_t, bool>> _orders_for_buy;
 
@@ -100,14 +94,12 @@ class core : public std::enable_shared_from_this<core>
                 bool                    // флаг отправки запроса статуса ордера
     >> _clients_id;
 
-    //std::map<std::string, std::string> _test;
-
     // флаг наличия балансов
     bool _has_balance = false;
 
     // Логгеры
     std::shared_ptr<spdlog::logger> _general_logger;
-    std::shared_ptr<spdlog::logger> orderbooks_logger;
+    std::shared_ptr<spdlog::logger> _logs_logger;
     std::shared_ptr<spdlog::logger> _balances_logger;
     std::shared_ptr<spdlog::logger> _orders_logger;
     std::shared_ptr<spdlog::logger> _errors_logger;
@@ -121,9 +113,14 @@ class core : public std::enable_shared_from_this<core>
 
     // содержит предыдущее успешно отправленную команду в гейт
     std::string     _prev_command_message = "none";
+    // содержит предыдущую успешно отправленную команду на создание ордера в лог
+    std::string     _prev_create_order_log_message = "none";
+    // содержит предыдущую успешно отправленную команду на отмену ордера в лог
+    std::string     _prev_cancel_order_log_message = "none";
     // флаг успешного получения конфига
     bool        _config_was_received = false;
     std::chrono::time_point<std::chrono::system_clock> _snap_time;
+    std::chrono::time_point<std::chrono::system_clock> _delay_time;
 
     /**
      * Функция обратного вызова для обработки баланса
