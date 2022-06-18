@@ -33,14 +33,11 @@ core::core(std::string config_file_path_)
 //---------------------------------------------------------------
 bool core::prepatation_for_launch(bss::error& error_) {
     // Сокращения для удобства доступа
-    //auto exchange       = _work_config.exchange;
     auto aeron          = _work_config.aeron;
     auto subscribers    = aeron.subscribers;
     auto publishers     = aeron.publishers;
     auto gateway        = publishers.gateway;
     auto log            = publishers.logs;
-    //auto metrics        = publishers.metrics;
-    //auto errors         = publishers.errors;
 
     // Инициализация каналов Aeron
     try {
@@ -111,11 +108,6 @@ bool core::prepatation_for_launch(bss::error& error_) {
     // Инициализация стратегии ожидания
     idle_strategy = aeron::SleepingIdleStrategy(std::chrono::milliseconds(subscribers.idle_strategy_sleep_ms));
 
-    // Инициализация пороговых значений для инструментов
-    //BTC_THRESHOLD  = dec_float(exchange.btc_threshold);
-    //USDT_THRESHOLD = dec_float(exchange.usdt_threshold);
-
-
     // Инициализация коэффициентов для вычисления цены ордеров
     _SELL_RATIO = dec_float(_work_config.sell_ratio);
     _BUY_RATIO  = dec_float(_work_config.buy_ratio);
@@ -141,15 +133,6 @@ bool core::load_config_from_file(bss::error& error_) {
         if (simdjson::SUCCESS == load_result.error()) {
             auto result = parser.parse(load_result.value().data(), load_result.value().size(), false);
             if (simdjson::SUCCESS == result.error()) {
-        //                if (auto is_new_element{result["is_new"].get_bool()}; simdjson::SUCCESS == is_new_element.error()) {
-        //                    if (is_new_element.value() == true) {
-        //                        std::cout << "Конфигурация обновилась." << std::endl;
-        //                    }
-        //                } else {
-        //                    //error_.describe("При загрузке конфигурации в теле json не найден оъект is_new.");
-        //                    // скорее всего дальше незачем парсить
-        //                    //return false;
-        //                }
                 // получим биржу
                 if (auto exchange_element{result["exchange"].get_string()}; simdjson::SUCCESS == exchange_element.error()) {
                     _work_config.exchange.name = exchange_element.value();
@@ -217,7 +200,7 @@ bool core::load_config_from_file(bss::error& error_) {
                 // получим часть пути для сокращения полного пути до элементов
                 if (auto cfg = result["data"]["configs"]["core_config"]; simdjson::SUCCESS == cfg.error()) {
                     // минимальные пороговые значения
-                    if (auto min_deal_amounts_objects{cfg["cross_3t_php"]["min_deal_amounts"].get_object()}; simdjson::SUCCESS == min_deal_amounts_objects.error()) {
+                    if (auto min_deal_amounts_objects{cfg["simple_core"]["min_deal_amounts"].get_object()}; simdjson::SUCCESS == min_deal_amounts_objects.error()) {
                         std::string_view asset_value;
                         double min_deal;
                         for (auto asset : min_deal_amounts_objects) {
@@ -229,33 +212,33 @@ bool core::load_config_from_file(bss::error& error_) {
 
                     }
                     // коэффициенты
-                    if (auto sell_ratio_element{cfg["cross_3t_php"]["ratio"]["sell"].get_double()}; simdjson::SUCCESS == sell_ratio_element.error()) {
+                    if (auto sell_ratio_element{cfg["simple_core"]["ratio"]["sell"].get_double()}; simdjson::SUCCESS == sell_ratio_element.error()) {
                         _work_config.sell_ratio = sell_ratio_element.value();
                     } else {
                         _work_config.sell_ratio = 1.0015;
                     }
-                    if (auto buy_ratio_element{cfg["cross_3t_php"]["ratio"]["buy"].get_double()}; simdjson::SUCCESS == buy_ratio_element.error()) {
+                    if (auto buy_ratio_element{cfg["simple_core"]["ratio"]["buy"].get_double()}; simdjson::SUCCESS == buy_ratio_element.error()) {
                         _work_config.buy_ratio = buy_ratio_element.value();
                     } else {
                         _work_config.buy_ratio = 0.9985;
                     }
-                    if (auto lower_bound_ratio_element{cfg["cross_3t_php"]["bound_ratio"]["lower"].get_double()}; simdjson::SUCCESS == lower_bound_ratio_element.error()) {
+                    if (auto lower_bound_ratio_element{cfg["simple_core"]["bound_ratio"]["lower"].get_double()}; simdjson::SUCCESS == lower_bound_ratio_element.error()) {
                         _work_config.lower_bound_ratio = lower_bound_ratio_element.value();
                     } else {
                         _work_config.lower_bound_ratio = 0.9995;
                     }
-                    if (auto upper_bound_ratio_element{cfg["cross_3t_php"]["bound_ratio"]["upper"].get_double()}; simdjson::SUCCESS == upper_bound_ratio_element.error()) {
+                    if (auto upper_bound_ratio_element{cfg["simple_core"]["bound_ratio"]["upper"].get_double()}; simdjson::SUCCESS == upper_bound_ratio_element.error()) {
                         _work_config.upper_bound_ratio = upper_bound_ratio_element.value();
                     } else {
                         _work_config.upper_bound_ratio = 1.0005;
                     }
                     // получаем значения сброса для зависших ордеров
-                    if (auto first_reset_element{cfg["cross_3t_php"]["reset_client_id"]["first"].get_int64()}; simdjson::SUCCESS == first_reset_element.error()) {
+                    if (auto first_reset_element{cfg["simple_core"]["reset_client_id"]["first"].get_int64()}; simdjson::SUCCESS == first_reset_element.error()) {
                         _work_config.reset_first_time = first_reset_element.value();
                     } else {
                         _work_config.reset_first_time = 10;
                     }
-                    if (auto second_reset_element{cfg["cross_3t_php"]["reset_clietnt_id"]["second"].get_int64()}; simdjson::SUCCESS == second_reset_element.error()) {
+                    if (auto second_reset_element{cfg["simple_core"]["reset_clietnt_id"]["second"].get_int64()}; simdjson::SUCCESS == second_reset_element.error()) {
                         _work_config.reset_second_time = second_reset_element.value();
                     } else {
                         _work_config.reset_second_time = 30;
@@ -371,16 +354,6 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
         //if (simdjson::SUCCESS == load_result.error()) {
             auto result = parser.parse(message_.c_str(), message_.size(), false);
             if (simdjson::SUCCESS == result.error()) {
-        //                if (auto is_new_element{result["is_new"].get_bool()}; simdjson::SUCCESS == is_new_element.error()) {
-        //                    if (is_new_element.value() == true) {
-        //                        std::cout << "Конфигурация обновилась." << std::endl;
-        //                    }
-        //                } else {
-        //                    //error_.describe("При загрузке конфигурации в теле json не найден оъект is_new.");
-        //                    // скорее всего дальше незачем парсить
-        //                    //return false;
-        //                }
-
                 // получим биржу
                 if (auto exchange_element{result["exchange"].get_string()}; simdjson::SUCCESS == exchange_element.error()) {
                     _work_config.exchange.name = exchange_element.value();
@@ -449,7 +422,7 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
                 // получим часть пути для сокращения полного пути до элементов
                 if (auto cfg = result["data"]["configs"]["core_config"]; simdjson::SUCCESS == cfg.error()) {
                     // минимальные пороговые значения
-                    if (auto min_deal_amounts_objects{cfg["cross_3t_php"]["min_deal_amounts"].get_object()}; simdjson::SUCCESS == min_deal_amounts_objects.error()) {
+                    if (auto min_deal_amounts_objects{cfg["simple_core"]["min_deal_amounts"].get_object()}; simdjson::SUCCESS == min_deal_amounts_objects.error()) {
                         std::string_view asset_value;
                         double min_deal;
                         for (auto asset : min_deal_amounts_objects) {
@@ -460,33 +433,33 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
                         }
                     }
                     // коэффициенты
-                    if (auto sell_ratio_element{cfg["cross_3t_php"]["ratio"]["sell"].get_double()}; simdjson::SUCCESS == sell_ratio_element.error()) {
+                    if (auto sell_ratio_element{cfg["simple_core"]["ratio"]["sell"].get_double()}; simdjson::SUCCESS == sell_ratio_element.error()) {
                         _work_config.sell_ratio = sell_ratio_element.value();
                     } else {
                         _work_config.sell_ratio = 1.0015;
                     }
-                    if (auto buy_ratio_element{cfg["cross_3t_php"]["ratio"]["buy"].get_double()}; simdjson::SUCCESS == buy_ratio_element.error()) {
+                    if (auto buy_ratio_element{cfg["simple_core"]["ratio"]["buy"].get_double()}; simdjson::SUCCESS == buy_ratio_element.error()) {
                         _work_config.buy_ratio = buy_ratio_element.value();
                     } else {
                         _work_config.buy_ratio = 0.9985;
                     }
-                    if (auto lower_bound_ratio_element{cfg["cross_3t_php"]["bound_ratio"]["lower"].get_double()}; simdjson::SUCCESS == lower_bound_ratio_element.error()) {
+                    if (auto lower_bound_ratio_element{cfg["simple_core"]["bound_ratio"]["lower"].get_double()}; simdjson::SUCCESS == lower_bound_ratio_element.error()) {
                         _work_config.lower_bound_ratio = lower_bound_ratio_element.value();
                     } else {
                         _work_config.lower_bound_ratio = 0.9995;
                     }
-                    if (auto upper_bound_ratio_element{cfg["cross_3t_php"]["bound_ratio"]["upper"].get_double()}; simdjson::SUCCESS == upper_bound_ratio_element.error()) {
+                    if (auto upper_bound_ratio_element{cfg["simple_core"]["bound_ratio"]["upper"].get_double()}; simdjson::SUCCESS == upper_bound_ratio_element.error()) {
                         _work_config.upper_bound_ratio = upper_bound_ratio_element.value();
                     } else {
                         _work_config.upper_bound_ratio = 1.0005;
                     }
                     // получаем значения сброса для зависших ордеров
-                    if (auto first_reset_element{cfg["cross_3t_php"]["reset_client_id"]["first"].get_int64()}; simdjson::SUCCESS == first_reset_element.error()) {
+                    if (auto first_reset_element{cfg["simple_core"]["reset_client_id"]["first"].get_int64()}; simdjson::SUCCESS == first_reset_element.error()) {
                         _work_config.reset_first_time = first_reset_element.value();
                     } else {
                         _work_config.reset_first_time = 10;
                     }
-                    if (auto second_reset_element{cfg["cross_3t_php"]["reset_clietnt_id"]["second"].get_int64()}; simdjson::SUCCESS == second_reset_element.error()) {
+                    if (auto second_reset_element{cfg["simple_core"]["reset_clietnt_id"]["second"].get_int64()}; simdjson::SUCCESS == second_reset_element.error()) {
                         _work_config.reset_second_time = second_reset_element.value();
                     } else {
                         _work_config.reset_second_time = 30;
@@ -1041,7 +1014,6 @@ void core::process_orders() {
         // Расчитываем объем возможных ордеров исходя из баланса и стоимости
         dec_float sell_quantity = _balance[std::get<0>(markets_tuple).first];
         dec_float buy_quantity  = _balance[std::get<0>(markets_tuple).second] / sell_price;
-//        std::cout << "Объем продажи: " << sell_quantity << ". Объем покупки: " << buy_quantity << std::endl;
 
         dec_float min_ask = avg_ask * _LOWER_BOUND_RATIO;
         dec_float max_ask = avg_ask * _UPPER_BOUND_RATIO;
@@ -1116,12 +1088,12 @@ void core::process_orders() {
 
         // получаем минимальный порог ,зависящий от amount increment для текущего ассета,
         //double threshold = std::get<4>(markets_tuple);
-        double threshold = _min_deal_amounts[std::get<0>(markets_tuple).first];
+        double base_threshold = _min_deal_amounts[std::get<0>(markets_tuple).first];
         // если ордера на продажу нет и баланс продаваемого ассета больше чем минимальный порог (т.е. можно продать)
-        if (!has_sell_orders && (_balance[std::get<0>(markets_tuple).first] > threshold)) {
+        if (!has_sell_orders && (_balance[std::get<0>(markets_tuple).first] > base_threshold)) {
             _general_logger->info("В наличии есть {} {}. Можно продать {} {}. Это больше чем {}.",
                                   std::get<0>(markets_tuple).first, _balance[std::get<0>(markets_tuple).first],
-                                  sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, threshold);
+                                  sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, base_threshold);
             std::string client_id = create_order("sell", symbol, sell_price, sell_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
@@ -1129,12 +1101,12 @@ void core::process_orders() {
             std::get<1>(markets_tuple) = std::make_pair(min_ask, max_ask);
             has_sell_orders = true;
         }
-        double threshold_quote = _min_deal_amounts[std::get<0>(markets_tuple).second];
-        // если ордера на покупку нет и баланс ассета больше 0 (т.е. можно потратить) и ??????
-        if (!has_buy_orders && (_balance[std::get<0>(markets_tuple).second] > /*0*/threshold_quote) && (buy_quantity > std::get<4>(markets_tuple))) {
+        double quote_threshold = _min_deal_amounts[std::get<0>(markets_tuple).second];
+        // если ордера на покупку нет и баланс ассета больше 0 (т.е. можно потратить)
+        if (!has_buy_orders && (_balance[std::get<0>(markets_tuple).second] > quote_threshold) && (buy_quantity > std::get<4>(markets_tuple))) {
             _general_logger->info("В наличии есть {} {}. Можно купить {} {}. Это больше чем > {}",
                                   std::get<0>(markets_tuple).second, _balance[std::get<0>(markets_tuple).second],
-                                  buy_quantity.convert_to<double>(), std::get<0>(markets_tuple).first, /*std::get<4>(markets_tuple)*/threshold_quote);
+                                  buy_quantity.convert_to<double>(), std::get<0>(markets_tuple).first, quote_threshold);
             std::string client_id = create_order("buy", symbol, buy_price, buy_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
