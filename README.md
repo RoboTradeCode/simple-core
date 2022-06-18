@@ -199,6 +199,24 @@ WantedBy=multi-user.target
 
 18. Возвращается к пункту 8.
 
+## Формат команды статуса ордеров
+````
+{
+   "event":"command",
+   "exchange":"ftx",
+   "node":"core",
+   "instance": "2",
+   "action":"order_status",
+   "message":null,
+   "algo":"spred_bot",
+   "timestamp":1644489501367487,
+   "data":{
+      "client_id":"6F9619FF-8B86-D011-B42D-00CF4FC964FF"
+   }
+}
+````
+
+Поле data содержит клиентский идентификатор.
 
 #### Блок-схема:
 ![trade_core](https://user-images.githubusercontent.com/60933744/170728197-693c95eb-d5e3-4aa6-be93-f18466ceee48.jpeg)
