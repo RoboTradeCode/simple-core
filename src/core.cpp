@@ -775,6 +775,7 @@ void core::balance_handler(std::string_view message_) {
 
                                     }
                                     _balance[std::string(asset_value)] = free;
+                                    _general_logger->info("Установили для {} сумму {}", asset_value, free);
                                 }
                             }
                             if (_balance.size() != 0)
@@ -1103,7 +1104,7 @@ void core::process_orders() {
             _general_logger->info("В наличии есть {} {}. Можно продать {} {}. Это больше чем {}.",
                                   std::get<0>(markets_tuple).first, _balance[std::get<0>(markets_tuple).first],
                                   sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, base_threshold);
-            //_general_logger->info("Средняя цена avg_ask: {}", avg_ask);
+            _general_logger->info("Средняя цена avg_ask: {}", avg_ask.convert_to<double>());
             std::string client_id = create_order("sell", symbol, sell_price, sell_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
@@ -1117,7 +1118,7 @@ void core::process_orders() {
             _general_logger->info("В наличии есть {} {}. Можно купить {} {}. Это больше чем > {}",
                                   std::get<0>(markets_tuple).second, _balance[std::get<0>(markets_tuple).second],
                                   buy_quantity.convert_to<double>(), std::get<0>(markets_tuple).first, quote_threshold);
-            //_general_logger->info("Средняя цена avg_bid: {}", avg_bid);
+            _general_logger->info("Средняя цена avg_bid: {}", avg_bid.convert_to<double>());
             std::string client_id = create_order("buy", symbol, buy_price, buy_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
