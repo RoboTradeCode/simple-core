@@ -817,7 +817,8 @@ void core::order_status_handler(std::string_view message_) {
             if (event_element.value() == "data") {
                 std::string side;
                 std::string symbol;
-                int64_t     id;
+                //int64_t     id;
+                std::string id;
                 std::string client_id;
                 // проверяем значения action
                 if (auto action_element{parse_result["action"].get_string()}; simdjson::SUCCESS == action_element.error()) {
@@ -829,7 +830,8 @@ void core::order_status_handler(std::string_view message_) {
                         if (auto symbol_element{parse_result["data"]["symbol"].get_string()}; simdjson::SUCCESS == symbol_element.error()) {
                             symbol = symbol_element.value();
                         } else {}
-                        if (auto id_element{parse_result["data"]["id"].get_int64()}; simdjson::SUCCESS == id_element.error()) {
+                        //if (auto id_element{parse_result["data"]["id"].get_int64()}; simdjson::SUCCESS == id_element.error()) {
+                        if (auto id_element{parse_result["data"]["id"].get_string()}; simdjson::SUCCESS == id_element.error()) {
                             id = id_element.value();
                         } else {}
                         if (auto client_id_element{parse_result["data"]["client_id"].get_string()}; simdjson::SUCCESS == client_id_element.error()) {
@@ -876,7 +878,7 @@ void core::order_status_handler(std::string_view message_) {
                             // после перезапуска и команды cancel_all_orders, а во время перезапуска были открытые ордера)
                             //if (find_client_id != _clients_id.end()) {
                                 // сбрасываем идентфикатор ордера
-                                _orders_for_sell[symbol].first = 0;
+                                _orders_for_sell[symbol].first = std::to_string(0);
                                 // если ордер выполнен, то флаг сброса надо опустить здесь
                                 _orders_for_sell[symbol].second = false;
                                 //std::cout << "обнулили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
@@ -892,7 +894,7 @@ void core::order_status_handler(std::string_view message_) {
                             // после перезапуска и команды cancel_all_orders, а во время перезапуска были открытые ордера)
                             //if (find_client_id != _clients_id.end()) {
                                 // сбрасываем идентфикатор ордера
-                                _orders_for_buy[symbol].first = 0;
+                                _orders_for_buy[symbol].first = std::to_string(0);
                                 // если ордер выполнен, то флаг сброса надо опустить здесь
                                 _orders_for_buy[symbol].second = false;
                                 //std::cout << "обнулили в _orders_for_buy id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
@@ -936,7 +938,7 @@ void core::order_status_handler(std::string_view message_) {
  */
 void core::orderbooks_handler(std::string_view message_) {
     //std::cout << "--------------------------------------" << std::endl;
-    std::cout << "orderbooks_handler " << message_ << std::endl;
+    //std::cout << "orderbooks_handler " << message_ << std::endl;
     //std::cout << "--------------------------------------" << std::endl;
 
     // Создадим парсер.
@@ -1074,7 +1076,7 @@ void core::process_orders() {
                     symbol == std::get<0>(pos->second) &&
                     false   == std::get<3>(pos->second)) {
 
-                send_get_order_status_request(std::to_string(pos->first));
+                send_get_order_status_request(pos->first);
                 // выставим флаг отправки запроса статуса ордера
                 std::get<3>(pos->second) = true;
                 _general_logger->info("{} ордер на отмену висит более {} секунд. Запрашиваем статус. {}.", pos->first, _work_config.reset_first_time, symbol);
@@ -1129,27 +1131,27 @@ void core::process_orders() {
         // Если есть ордер на продажу, но усреднённое лучшее предложение за пределами удержания — отменить ордер
         if (has_sell_orders && !((std::get<1>(markets_tuple).first < avg_ask) && (avg_ask < std::get<1>(markets_tuple).second))) {
             // если идентификатор не нулевой
-            if (id_sell_order != 0) {
+            if (id_sell_order != "0") {
                 // отменяем
                 cancel_order("sell", symbol, id_sell_order);
                 //has_sell_orders = false;
                 // запомним идентификатор ордера на отмену
                 _cancel_id[id_sell_order] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
-                id_sell_order = 0;
+                id_sell_order = "0";
             }
         }
 
         // Если есть ордер на покупку, но усреднённое лучшее предложение за пределами удержания — отменить ордер
         if (has_buy_orders && !((std::get<2>(markets_tuple).first < avg_bid) && (avg_bid < std::get<2>(markets_tuple).second))) {
             // если идентификатор не нулевой
-            if (id_buy_order != 0) {
+            if (id_buy_order != "0") {
                 // отменяем
                 cancel_order("buy", symbol, id_buy_order);
                 //has_buy_orders = false;
                 // запомним идентификатор ордера на отмену
                 _cancel_id[id_buy_order] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
 
-                id_buy_order = 0;
+                id_buy_order = "0";
             }
         }
     }
@@ -1263,7 +1265,7 @@ std::string core::create_order(std::string_view side_, const std::string& symbol
  *
  * @param side Тип ордера
  */
-void core::cancel_order(std::string_view side_, std::string symbol_, int64_t id_) {
+void core::cancel_order(std::string_view side_, std::string symbol_, /*int64_t id_*/std::string id_) {
 
     JSON cancel_orders;
     cancel_orders["event"]       = "command";
@@ -1278,7 +1280,7 @@ void core::cancel_order(std::string_view side_, std::string symbol_, int64_t id_
 
     JSON data;
     JSON order;
-    order["id"]     = std::to_string(id_);
+    order["id"]     = id_;
     order["symbol"] = symbol_;
     data.push_back(order);
 
