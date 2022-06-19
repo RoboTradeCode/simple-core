@@ -12,6 +12,7 @@ core::core(std::string config_file_path_)
       _balances_logger(spdlog::get("balances")),
       _orders_logger(spdlog::get("orders")),
       _errors_logger(spdlog::get("errors")),
+      _orderbook_logger(spdlog::get("orderbooks")),
       _general_logger(spdlog::get("general")) {
 
 //    _orders_for_sell["UGD/TRE"] = std::make_pair(0, false);
@@ -941,6 +942,7 @@ void core::orderbooks_handler(std::string_view message_) {
     //std::cout << "orderbooks_handler " << message_ << std::endl;
     //std::cout << "--------------------------------------" << std::endl;
 
+    _orderbook_logger->info(message_);
     // Создадим парсер.
     simdjson::ondemand::parser parser;
     simdjson::padded_string json(message_);

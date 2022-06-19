@@ -117,6 +117,7 @@ class core : public std::enable_shared_from_this<core>
     std::shared_ptr<spdlog::logger> _balances_logger;
     std::shared_ptr<spdlog::logger> _orders_logger;
     std::shared_ptr<spdlog::logger> _errors_logger;
+    std::shared_ptr<spdlog::logger> _orderbook_logger;
 
     // константы ошибок aeron
     const char* BACK_PRESSURED_DESCRIPTION     = "Offer failed due to back pressure.";
