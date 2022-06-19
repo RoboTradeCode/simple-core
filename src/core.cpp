@@ -96,11 +96,11 @@ bool core::prepatation_for_launch(bss::error& error_) {
     //errors_channel = std::make_shared<Publisher>(errors.channel, errors.stream_id, errors.buffer_size);
 
     // отменяем все ордера
-  /*  send_cancel_all_orders_request();*/
+    send_cancel_all_orders_request();
     // запрашиваем баланс
     send_get_balances_request();
     // Подписка на Publisher'ов
-    /*for (const std::string& channel: subscribers.orderbooks.destinations)
+    for (const std::string& channel: subscribers.orderbooks.destinations)
         _orderbooks_channel->add_destination(channel);
     for (const std::string& channel: subscribers.balances.destinations)
         _balance_channel->add_destination(channel);
@@ -115,7 +115,7 @@ bool core::prepatation_for_launch(bss::error& error_) {
     // Инициализация коэффициентов для вычисления границ удержания ордеров
     _LOWER_BOUND_RATIO = dec_float(_work_config.lower_bound_ratio);
     _UPPER_BOUND_RATIO = dec_float(_work_config.upper_bound_ratio);
-*/
+
     return true;
 }
 //---------------------------------------------------------------
@@ -204,7 +204,8 @@ bool core::load_config_from_file(bss::error& error_) {
                         std::string_view asset_value;
                         double min_deal;
                         for (auto asset : min_deal_amounts_objects) {
-                            std::cout << asset.key << " " << asset.value << std::endl;
+                            //std::cout << asset.key << " " << asset.value << std::endl;
+                            _general_logger->info(asset.key);
                             asset_value = asset.key;
                             //min_deal = asset.value.get_double();
                             _min_deal_amounts[std::string(asset_value)] = asset.value.get_double();
@@ -426,7 +427,8 @@ bool core::load_config_from_json(const std::string& message_, bss::error &error_
                         std::string_view asset_value;
                         double min_deal;
                         for (auto asset : min_deal_amounts_objects) {
-                            std::cout << asset.key << " " << asset.value << std::endl;
+                            //std::cout << asset.key << " " << asset.value << std::endl;
+                            _general_logger->info(asset.key);
                             asset_value = asset.key;
                             //min_deal = asset.value.get_double();
                             _min_deal_amounts[std::string(asset_value)] = asset.value.get_double();
@@ -761,12 +763,19 @@ void core::balance_handler(std::string_view message_) {
                             std::string_view asset_value;
                             for (auto asset : data_element_objects) {
                                 asset_value = asset.unescaped_key();
-                                if (auto asset_free_element_array{parse_result["data"][asset_value]["free"].get_double()}; simdjson::SUCCESS == asset_free_element_array.error()) {
-                                    free = asset_free_element_array.value();
-                                } else {
 
+                                // найдем только те ассеты, с которыми мы работаем
+                                auto asset_finded = std::find(_work_config._assets.begin(), _work_config._assets.end(), asset_value);
+                                if (asset_finded != _work_config._assets.end())
+                                {
+                                    // найден
+                                    if (auto asset_free_element_array{parse_result["data"][asset_value]["free"].get_double()}; simdjson::SUCCESS == asset_free_element_array.error()) {
+                                        free = asset_free_element_array.value();
+                                    } else {
+
+                                    }
+                                    _balance[std::string(asset_value)] = free;
                                 }
-                                _balance[std::string(asset_value)] = free;
                             }
                             if (_balance.size() != 0)
                                 _has_balance = true;
