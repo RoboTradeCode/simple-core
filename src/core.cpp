@@ -1081,7 +1081,7 @@ void core::process_orders() {
                 send_get_order_status_request(pos->first);
                 // выставим флаг отправки запроса статуса ордера
                 std::get<3>(pos->second) = true;
-                _general_logger->info("{} ордер на отмену висит более {} секунд. Запрашиваем статус. {}.", pos->first, _work_config.reset_first_time, symbol);
+                _general_logger->info("{} ордер на отмену висит более {} секунд. Запрашиваем статус. {}.", pos->first.c_str(), _work_config.reset_first_time, symbol);
                  ++pos;
             }
             // если время обработки ордера истекло и валютная пара из словаря соответсвует текущей,
@@ -1089,10 +1089,10 @@ void core::process_orders() {
             else if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() >= _work_config.reset_second_time && symbol == std::get<0>(pos->second)) {
                 if (std::get<1>(pos->second) == "sell") {
                     has_sell_orders = false;
-                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_sell_orders = false). {} sell.", pos->first, _work_config.reset_second_time,symbol);
+                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_sell_orders = false). {} sell.", pos->first.c_str(), _work_config.reset_second_time,symbol);
                 } else if (std::get<1>(pos->second) == "buy") {
                     has_buy_orders = false;
-                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_buy_orders = false). {} buy.", pos->first, _work_config.reset_second_time, symbol);
+                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_buy_orders = false). {} buy.", pos->first.c_str(), _work_config.reset_second_time, symbol);
                 }
                 pos = _cancel_id.erase(pos);
              } else {
