@@ -1108,7 +1108,7 @@ void core::process_orders() {
             _general_logger->info("В наличии есть {} {}. Можно продать {} {}. Это больше чем {}.",
                                   std::get<0>(markets_tuple).first, _balance[std::get<0>(markets_tuple).first],
                                   sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, base_threshold);
-            _general_logger->info("Средняя цена avg_ask: {}", avg_ask.convert_to<double>());
+            _general_logger->info("Средняя цена avg_ask {} по {}", avg_ask.convert_to<double>(), std::get<0>(markets_tuple).first);
             std::string client_id = create_order("sell", symbol, sell_price, sell_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
@@ -1122,7 +1122,7 @@ void core::process_orders() {
             _general_logger->info("В наличии есть {} {}. Можно купить {} {}. Это больше чем > {}",
                                   std::get<0>(markets_tuple).second, _balance[std::get<0>(markets_tuple).second],
                                   buy_quantity.convert_to<double>(), std::get<0>(markets_tuple).first, quote_threshold);
-            _general_logger->info("Средняя цена avg_bid: {}", avg_bid.convert_to<double>());
+            _general_logger->info("Средняя цена avg_bid {} по {}", avg_bid.convert_to<double>(), std::get<0>(markets_tuple).second);
             std::string client_id = create_order("buy", symbol, buy_price, buy_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
