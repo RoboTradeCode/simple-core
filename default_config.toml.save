@@ -1,0 +1,26 @@
+# данные для ядра
+[core]
+exchange_name = 'binance'
+instance_name = 'test'
+[configuration]
+# Откуда загружать конфигурацию. Может быть три значения: agent, api, file.
+
+source = 'api'
+
+# эндпойнт для получения конфигурации от конфигуратора.
+#api = {url = 'https://configurator.robotrade.io/ftx/1', params = {only_new = false}}
+api = ["configurator.robotrade.io", "/binance/test?only_new=false"]
+
+# настройки работы протокола aeron
+[aeron]
+# настройки каналов откуда будем принимать данные
+[aeron.subscribers]
+# настройки канала куда будет приходить конфигурацию от агента
+# ["channel", channel_id]	
+agent = ["aeron:ipc", 1004]
+# настройки каналов куда будем отправлять данные
+[aeron.publishers]
+# канал куда отправляем логи
+logs = ["aeron:ipc", 2002]
+# канал агента куда гейт при запуске отправит запрос на получение конфига
+agent = ["aeron:ipc", 1002]
