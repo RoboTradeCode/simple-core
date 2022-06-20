@@ -1108,7 +1108,7 @@ void core::process_orders() {
             _general_logger->info("В наличии есть {} {}. Можно продать {} {}. Это больше чем {}.",
                                   std::get<0>(markets_tuple).first, _balance[std::get<0>(markets_tuple).first],
                                   sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, base_threshold);
-            _general_logger->info("Средняя цена avg_ask {} по {}", avg_ask.convert_to<double>(), std::get<0>(markets_tuple).first);
+            _general_logger->info("Средняя цена avg_ask {} по {}. {}", avg_ask.convert_to<double>(), std::get<0>(markets_tuple).first, symbol);
             std::string client_id = create_order("sell", symbol, sell_price, sell_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
@@ -1177,6 +1177,9 @@ std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker) 
             auto[ask, bid] = exchange_orderbooks.at(ticker);
             sum_ask += ask;
             sum_bid += bid;
+                    _orders_logger->info("ask {} bid {}", ask.convert_to<double>(), bid.convert_to<double>());
+        } else {
+            _orders_logger->info("exchange_orderbooks не содержит тикера {}", ticker);
         }
     }
 
