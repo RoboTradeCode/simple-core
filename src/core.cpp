@@ -1170,6 +1170,7 @@ std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker) 
     // Суммы лучших предложений
     dec_float sum_ask(0);
     dec_float sum_bid(0);
+    _orders_logger->info("----------");
     for (auto const&[exchange, exchange_orderbooks]: _orderbooks) {
         auto find_ticker = exchange_orderbooks.find(ticker);
         // если ордербук содержит такой тикер
@@ -1177,7 +1178,7 @@ std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker) 
             auto[ask, bid] = exchange_orderbooks.at(ticker);
             sum_ask += ask;
             sum_bid += bid;
-                    _orders_logger->info("ask {} bid {}", ask.convert_to<double>(), bid.convert_to<double>());
+                    _orders_logger->info("ticker {} ask {} bid {}", ticker, ask.convert_to<double>(), bid.convert_to<double>());
         } else {
             _orders_logger->info("exchange_orderbooks не содержит тикера {}", ticker);
         }

@@ -41,13 +41,19 @@ void init_logging()
     );
 
     // Логирование ордеров
-    std::vector<spdlog::sink_ptr> orders_sinks;
+    auto orders = spdlog::rotating_logger_mt<spdlog::async_factory>(
+        "orders",
+        "logs/orders.log",
+        max_size,
+        max_files
+    );
+    /*std::vector<spdlog::sink_ptr> orders_sinks;
     auto orders_file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/orders.log", max_size, max_files);
     auto orders_stdout = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     orders_sinks.push_back(orders_file);
     orders_sinks.push_back(orders_stdout);
     auto orders = std::make_shared<spdlog::logger>("orders", begin(orders_sinks), end(orders_sinks));
-    spdlog::register_logger(orders);
+    spdlog::register_logger(orders);*/
 
     // Логирование основных действий
     std::vector<spdlog::sink_ptr> general_sinks;
