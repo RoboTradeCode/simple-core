@@ -82,10 +82,10 @@ class core : public std::enable_shared_from_this<core>
                   double                                // amount_increment
     >> _markets;
 
-    //std::map<std::string, std::pair<int64_t, bool>> _orders_for_sell;
-    std::map<std::string, std::pair<std::string, bool>> _orders_for_sell;
-    //std::map<std::string, std::pair<int64_t, bool>> _orders_for_buy;
-    std::map<std::string, std::pair<std::string, bool>> _orders_for_buy;
+    std::map<std::string, std::pair<int64_t, bool>> _orders_for_sell;
+    //std::map<std::string, std::pair<std::string, bool>> _orders_for_sell;
+    std::map<std::string, std::pair<int64_t, bool>> _orders_for_buy;
+    //std::map<std::string, std::pair<std::string, bool>> _orders_for_buy;
 
     // словарь идентификаторов ордеров
     std::map<std::string,               // клиентский идентификатор ордера
@@ -97,7 +97,7 @@ class core : public std::enable_shared_from_this<core>
     >> _clients_id;
 
     // словарь для контроля отмены ордеров (на случай, если мы не получим ответ от гейта)
-    std::map<std::string,              // идентификатор ордера на отмену
+    std::map<int64_t,              // идентификатор ордера на отмену
             std::tuple<
                 std::string,            // валютная пара
                 std::string,            // сделка (sell, buy)

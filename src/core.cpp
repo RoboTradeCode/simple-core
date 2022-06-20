@@ -818,8 +818,8 @@ void core::order_status_handler(std::string_view message_) {
             if (event_element.value() == "data") {
                 std::string side;
                 std::string symbol;
-                //int64_t     id;
-                std::string id;
+                int64_t     id;
+                //std::string id;
                 std::string client_id;
                 // проверяем значения action
                 if (auto action_element{parse_result["action"].get_string()}; simdjson::SUCCESS == action_element.error()) {
@@ -832,9 +832,10 @@ void core::order_status_handler(std::string_view message_) {
                             symbol = symbol_element.value();
                         } else {}
                         //if (auto id_element{parse_result["data"]["id"].get_int64()}; simdjson::SUCCESS == id_element.error()) {
-                        if (auto id_element{parse_result["data"]["id"].get_string()}; simdjson::SUCCESS == id_element.error()) {
+                        if (auto id_element{parse_result["data"]["id"].get_uint64_in_string()}; simdjson::SUCCESS == id_element.error()) {
                             id = id_element.value();
                         } else {}
+                        //auto ii{parse_result["data"]["id"].get_uint64_in_string()}
                         if (auto client_id_element{parse_result["data"]["client_id"].get_string()}; simdjson::SUCCESS == client_id_element.error()) {
                             client_id = client_id_element.value();
                         }  else {}
@@ -879,7 +880,7 @@ void core::order_status_handler(std::string_view message_) {
                             // после перезапуска и команды cancel_all_orders, а во время перезапуска были открытые ордера)
                             //if (find_client_id != _clients_id.end()) {
                                 // сбрасываем идентфикатор ордера
-                                _orders_for_sell[symbol].first = "0";
+                                _orders_for_sell[symbol].first = 0;
                                 // если ордер выполнен, то флаг сброса надо опустить здесь
                                 _orders_for_sell[symbol].second = false;
                                 //std::cout << "обнулили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
@@ -895,7 +896,7 @@ void core::order_status_handler(std::string_view message_) {
                             // после перезапуска и команды cancel_all_orders, а во время перезапуска были открытые ордера)
                             //if (find_client_id != _clients_id.end()) {
                                 // сбрасываем идентфикатор ордера
-                                _orders_for_buy[symbol].first = "0";
+                                _orders_for_buy[symbol].first = 0;
                                 // если ордер выполнен, то флаг сброса надо опустить здесь
                                 _orders_for_buy[symbol].second = false;
                                 //std::cout << "обнулили в _orders_for_buy id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
@@ -1078,10 +1079,10 @@ void core::process_orders() {
                     symbol == std::get<0>(pos->second) &&
                     false   == std::get<3>(pos->second)) {
 
-                send_get_order_status_request(pos->first);
+                send_get_order_status_request(std::to_string(pos->first));
                 // выставим флаг отправки запроса статуса ордера
                 std::get<3>(pos->second) = true;
-                _general_logger->info("{} ордер на отмену висит более {} секунд. Запрашиваем статус. {}.", pos->first.c_str(), _work_config.reset_first_time, symbol);
+                _general_logger->info("{} ордер на отмену висит более {} секунд. Запрашиваем статус. {}.", pos->first, _work_config.reset_first_time, symbol);
                  ++pos;
             }
             // если время обработки ордера истекло и валютная пара из словаря соответсвует текущей,
@@ -1089,10 +1090,10 @@ void core::process_orders() {
             else if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - std::get<2>(pos->second)).count() >= _work_config.reset_second_time && symbol == std::get<0>(pos->second)) {
                 if (std::get<1>(pos->second) == "sell") {
                     has_sell_orders = false;
-                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_sell_orders = false). {} sell.", pos->first.c_str(), _work_config.reset_second_time,symbol);
+                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_sell_orders = false). {} sell.", pos->first, _work_config.reset_second_time,symbol);
                 } else if (std::get<1>(pos->second) == "buy") {
                     has_buy_orders = false;
-                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_buy_orders = false). {} buy.", pos->first.c_str(), _work_config.reset_second_time, symbol);
+                    _general_logger->info("{} ордер на отмену висит {} секунд и будет сброшен (has_buy_orders = false). {} buy.", pos->first, _work_config.reset_second_time, symbol);
                 }
                 pos = _cancel_id.erase(pos);
              } else {
@@ -1133,27 +1134,27 @@ void core::process_orders() {
         // Если есть ордер на продажу, но усреднённое лучшее предложение за пределами удержания — отменить ордер
         if (has_sell_orders && !((std::get<1>(markets_tuple).first < avg_ask) && (avg_ask < std::get<1>(markets_tuple).second))) {
             // если идентификатор не нулевой
-            if (id_sell_order != "0") {
+            if (id_sell_order != 0) {
                 // отменяем
-                cancel_order("sell", symbol, id_sell_order);
+                cancel_order("sell", symbol, std::to_string(id_sell_order));
                 //has_sell_orders = false;
                 // запомним идентификатор ордера на отмену
                 _cancel_id[id_sell_order] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
-                id_sell_order = "0";
+                id_sell_order = 0;
             }
         }
 
         // Если есть ордер на покупку, но усреднённое лучшее предложение за пределами удержания — отменить ордер
         if (has_buy_orders && !((std::get<2>(markets_tuple).first < avg_bid) && (avg_bid < std::get<2>(markets_tuple).second))) {
             // если идентификатор не нулевой
-            if (id_buy_order != "0") {
+            if (id_buy_order != 0) {
                 // отменяем
-                cancel_order("buy", symbol, id_buy_order);
+                cancel_order("buy", symbol, std::to_string(id_buy_order));
                 //has_buy_orders = false;
                 // запомним идентификатор ордера на отмену
                 _cancel_id[id_buy_order] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
 
-                id_buy_order = "0";
+                id_buy_order = 0;
             }
         }
     }
