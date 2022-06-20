@@ -768,7 +768,7 @@ void core::balance_handler(std::string_view message_) {
 
                                     }
                                     _balance[std::string(asset_value)] = free;
-                                    _general_logger->info("Установили для {} сумму {}", asset_value, free);
+                                    //_general_logger->info("Установили для {} сумму {}", asset_value, free);
                                 }
                             }
                             if (_balance.size() != 0)
@@ -848,7 +848,7 @@ void core::order_status_handler(std::string_view message_) {
                         if (client_id.empty()) {
                             for (auto it = _clients_id.begin(); it != _clients_id.end();) {
                                 if (std::get<0>(it->second) == symbol && std::get<1>(it->second) == side) {
-                                    _general_logger->info("удалили предполагаемый из _clients_id: {}", client_id);
+                                    _general_logger->info("удалили предполагаемый из _clients_id: {}", it->first);
                                     it = _clients_id.erase(it);
                                 } else {
                                     ++it;
@@ -921,7 +921,7 @@ void core::order_status_handler(std::string_view message_) {
                         auto find_id = _cancel_id.find(id);
                         if (find_id != _cancel_id.end()) {
                             _cancel_id.erase(find_id);
-                            _general_logger->info("удалили из _cancel_id: {}", client_id);
+                            _general_logger->info("удалили из _cancel_id: {}", id);
                         }
                     } else {
                         _errors_logger->error("(order_status_handler) Поле \"action\" содержит значение: {}", action_element.value());
@@ -1067,7 +1067,7 @@ void core::process_orders() {
 
         // средняя цена может быть равной 0 (например ордербук по данному тикеру еще не приходил по какой-то причине)
         if (avg_ask == 0 || avg_bid == 0) {
-            _general_logger->info("По тикеру {} нет средней цены, вероятно ордербука еще не было", symbol);
+            //_general_logger->info("По тикеру {} нет средней цены, вероятно ордербука еще не было", symbol);
             continue;
         }
         // Расчитываем стоимость возможных ордеров
@@ -1157,12 +1157,14 @@ void core::process_orders() {
             _general_logger->info("В наличии есть {} {}. Можно продать {} {}. Это больше чем {}.",
                                   std::get<0>(markets_tuple).first, _balance[std::get<0>(markets_tuple).first],
                                   sell_quantity.convert_to<double>(), std::get<0>(markets_tuple).second, base_threshold);
-            _general_logger->info("Средняя цена avg_ask {} по {}. {}", avg_ask.convert_to<double>(), std::get<0>(markets_tuple).first, symbol);
+
             std::string client_id = create_order("sell", symbol, sell_price, sell_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "sell", std::chrono::system_clock::now(), false);
             // запоминаем границы
             std::get<1>(markets_tuple) = std::make_pair(min_ask, max_ask);
+            _general_logger->info("Средняя цена avg_ask {} {}. min_ask {} max_ask {}",
+                                  avg_ask.convert_to<double>(), symbol, min_ask.convert_to<double>(), max_ask.convert_to<double>());
             has_sell_orders = true;
         }
         double quote_threshold = _min_deal_amounts[std::get<0>(markets_tuple).second];
@@ -1171,12 +1173,13 @@ void core::process_orders() {
             _general_logger->info("В наличии есть {} {}. Можно купить {} {}. Это больше чем > {}",
                                   std::get<0>(markets_tuple).second, _balance[std::get<0>(markets_tuple).second],
                                   buy_quantity.convert_to<double>(), std::get<0>(markets_tuple).first, quote_threshold);
-            _general_logger->info("Средняя цена avg_bid {} по {}", avg_bid.convert_to<double>(), std::get<0>(markets_tuple).second);
             std::string client_id = create_order("buy", symbol, buy_price, buy_quantity, std::get<3>(markets_tuple), std::get<4>(markets_tuple));
             // запоминаем ордер
             _clients_id[client_id] = std::make_tuple(symbol, "buy", std::chrono::system_clock::now(), false);
             // запоминаем границы
             std::get<2>(markets_tuple) = std::make_pair(min_bid, max_bid);
+            _general_logger->info("Средняя цена avg_bid {} {}. min_bid {} max_bid {}",
+                                  avg_bid.convert_to<double>(), symbol, min_bid.convert_to<double>(), max_bid.convert_to<double>());
             has_buy_orders = true;
         }
         // Если есть ордер на продажу, но усреднённое лучшее предложение за пределами удержания — отменить ордер
