@@ -859,7 +859,7 @@ void core::order_status_handler(std::string_view message_) {
                    //         std::cout << "удалили из _clients_id: " << client_id << std::endl;
                             _general_logger->info("удалили из _clients_id: {}", client_id);
                         }
-                    } else if (action_element.value() == "order_cancel") {
+                    } else if (action_element.value() == "order_cancel" || action_element.value() == "order_closed") {
                         // был отменен ордер
                         if (auto side_element{parse_result["data"]["side"].get_string()}; simdjson::SUCCESS == side_element.error()) {
                             side = side_element.value();
