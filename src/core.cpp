@@ -925,6 +925,45 @@ void core::order_status_handler(std::string_view message_) {
                 } else {
                    _errors_logger->error("(order_status_handler) Поле \"action\" отсутствует");
                 }
+            } else if(event_element.value() == "error") {
+                _general_logger->info("Обрабатываем ошибку создания ордера");
+                // проверяем значения action
+                if (auto action_element{parse_result["action"].get_string()}; simdjson::SUCCESS == action_element.error()) {
+                    std::string client_id;
+                    std::string side;
+                    std::string symbol;
+                    if (action_element.value() == "order_created") {
+                        // если произошла ошибка, то надо получить значение client_id сбросить необходимые флаги
+                        if (auto client_id_element{parse_result["data"]["client_id"].get_string()}; simdjson::SUCCESS == client_id_element.error()) {
+                            client_id = client_id_element.value();
+                        }  else {}
+                        if (auto side_element{parse_result["data"]["side"].get_string()}; simdjson::SUCCESS == side_element.error()) {
+                            side = side_element.value();
+                        } else {}
+                        if (auto symbol_element{parse_result["data"]["symbol"].get_string()}; simdjson::SUCCESS == symbol_element.error()) {
+                            symbol = symbol_element.value();
+                        } else {}
+                        if (side == "sell") {
+                            _orders_for_sell[symbol].first = 0;
+                            // если ордер выполнен, то флаг сброса надо опустить здесь
+                            _orders_for_sell[symbol].second = false;
+                            _general_logger->info("сбросили _orders_for_sell в false для {}", symbol);
+                        } else if (side == "buy") {
+                            _orders_for_buy[symbol].first = 0;
+                            // если ордер выполнен, то флаг сброса надо опустить здесь
+                            _orders_for_buy[symbol].second = false;
+                            _general_logger->info("сбросили _orders_for_buy в false для {}", symbol);
+                        }
+                        // удалим клиентский идентификатор из под контроля
+                        auto find_client_id = _clients_id.find(client_id);
+                        if (find_client_id != _clients_id.end()) {
+                            _clients_id.erase(find_client_id);
+                            _general_logger->info("удалили из _clients_id: {}", client_id);
+                        }
+                    } else if (action_element.value() == "order_cancel") {
+
+                    }
+                }
             } else {
                 _errors_logger->error("(order_status_handler) Поле \"event\" содержит значение: {}", event_element.value());
             }
