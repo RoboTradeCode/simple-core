@@ -52,10 +52,6 @@ class core : public std::enable_shared_from_this<core>
     // Стратегия ожидания Aeron
     aeron::SleepingIdleStrategy idle_strategy;
 
-    // Пороговые значения для инструментов
-    //dec_float BTC_THRESHOLD;
-    //dec_float USDT_THRESHOLD;
-
     // Коэффициенты для вычисления цены ордеров
     dec_float                   _SELL_RATIO;
     dec_float                   _BUY_RATIO;

@@ -15,14 +15,6 @@ core::core(std::string config_file_path_)
       _orderbook_logger(spdlog::get("orderbooks")),
       _general_logger(spdlog::get("general")) {
 
-//    _orders_for_sell["UGD/TRE"] = std::make_pair(0, false);
-//    if (_orders_for_sell["UGD/TRE"].second == false )
-//    {
-//        auto&[id_sell_order, has_sell_orders] = _orders_for_sell["UGD/TRE"];
-//                has_sell_orders = true;
-//        std::cout << "hz" << std::endl;
-//    }
-
     _general_logger->info("Core starting...");
     // Получение дефолтной конфигурации
     _default_config = parse_config(config_file_path_);
@@ -852,13 +844,25 @@ void core::order_status_handler(std::string_view message_) {
                             _orders_for_buy[symbol].first = id;
                             _general_logger->info("запомнили в _buy_orders id: {}. Содержит {} элементов.", id, _orders_for_buy.size());
                         }
-                        // независимо от side удаляем из словаря по client_id
-                        auto find_client_id = _clients_id.find(client_id);
-                        if (find_client_id != _clients_id.end()) {
-                            _clients_id.erase(find_client_id);
-                   //         std::cout << "удалили из _clients_id: " << client_id << std::endl;
-                            _general_logger->info("удалили из _clients_id: {}", client_id);
+                        // если гейт не вернул client_id (он может его не поддерживать), то надо найти по параметрам клиентский идентификатор и удалить
+                        if (client_id.empty()) {
+                            for (auto it = _clients_id.begin(); it != _clients_id.end();) {
+                                if (std::get<0>(it->second) == symbol && std::get<1>(it->second) == side) {
+                                    _general_logger->info("удалили предполагаемый из _clients_id: {}", client_id);
+                                    it = _clients_id.erase(it);
+                                } else {
+                                    ++it;
+                                }
+                            }
+                        } else {
+                            // независимо от side удаляем из словаря по client_id
+                            auto find_client_id = _clients_id.find(client_id);
+                            if (find_client_id != _clients_id.end()) {
+                                _clients_id.erase(find_client_id);
+                                _general_logger->info("удалили из _clients_id: {}", client_id);
+                            }
                         }
+
                     } else if (action_element.value() == "order_cancel" || action_element.value() == "order_closed") {
                         // был отменен ордер
                         if (auto side_element{parse_result["data"]["side"].get_string()}; simdjson::SUCCESS == side_element.error()) {
@@ -1215,7 +1219,6 @@ std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker) 
     // Суммы лучших предложений
     dec_float sum_ask(0);
     dec_float sum_bid(0);
-    _orders_logger->info("----------");
     for (auto const&[exchange, exchange_orderbooks]: _orderbooks) {
         auto find_ticker = exchange_orderbooks.find(ticker);
         // если ордербук содержит такой тикер
