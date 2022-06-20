@@ -982,7 +982,7 @@ void core::orderbooks_handler(std::string_view message_) {
     //std::cout << "orderbooks_handler " << message_ << std::endl;
     //std::cout << "--------------------------------------" << std::endl;
 
-    _orderbook_logger->info(message_);
+    //_orderbook_logger->info(message_);
     // Создадим парсер.
     simdjson::ondemand::parser parser;
     simdjson::padded_string json(message_);
@@ -1061,6 +1061,11 @@ void core::process_orders() {
         dec_float avg_ask = avg.first;
         dec_float avg_bid = avg.second;
 
+        // средняя цена может быть равной 0 (например ордербук по данному тикеру еще не приходил по какой-то причине)
+        if (avg_ask == 0 || avg_bid == 0) {
+            _general_logger->info("По тикеру {} нет средней цены, вероятно ордербука еще не было", symbol);
+            continue;
+        }
         // Расчитываем стоимость возможных ордеров
         dec_float sell_price    = avg_ask * _SELL_RATIO;
         dec_float buy_price     = avg_bid * _BUY_RATIO;
@@ -1218,9 +1223,9 @@ std::pair<dec_float, dec_float> core::avg_orderbooks(const std::string& ticker) 
             auto[ask, bid] = exchange_orderbooks.at(ticker);
             sum_ask += ask;
             sum_bid += bid;
-                    _orders_logger->info("ticker {} ask {} bid {}", ticker, ask.convert_to<double>(), bid.convert_to<double>());
+            //_orders_logger->info("ticker {} ask {} bid {}", ticker, ask.convert_to<double>(), bid.convert_to<double>());
         } else {
-            _orders_logger->info("exchange_orderbooks не содержит тикера {}", ticker);
+            //_orders_logger->info("exchange_orderbooks не содержит тикера {}", ticker);
         }
     }
 
