@@ -879,7 +879,7 @@ void core::order_status_handler(std::string_view message_) {
                             // после перезапуска и команды cancel_all_orders, а во время перезапуска были открытые ордера)
                             //if (find_client_id != _clients_id.end()) {
                                 // сбрасываем идентфикатор ордера
-                                _orders_for_sell[symbol].first = std::to_string(0);
+                                _orders_for_sell[symbol].first = "0";
                                 // если ордер выполнен, то флаг сброса надо опустить здесь
                                 _orders_for_sell[symbol].second = false;
                                 //std::cout << "обнулили в _sell_orders id: " << id << ". Содержит " << _orders_for_sell.size() << std::endl;
@@ -895,7 +895,7 @@ void core::order_status_handler(std::string_view message_) {
                             // после перезапуска и команды cancel_all_orders, а во время перезапуска были открытые ордера)
                             //if (find_client_id != _clients_id.end()) {
                                 // сбрасываем идентфикатор ордера
-                                _orders_for_buy[symbol].first = std::to_string(0);
+                                _orders_for_buy[symbol].first = "0";
                                 // если ордер выполнен, то флаг сброса надо опустить здесь
                                 _orders_for_buy[symbol].second = false;
                                 //std::cout << "обнулили в _orders_for_buy id: " << id << ". Содержит " << _orders_for_buy.size() << std::endl;
